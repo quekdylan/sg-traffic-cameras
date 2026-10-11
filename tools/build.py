@@ -14,7 +14,6 @@ import io
 import json
 import math
 import os
-import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
@@ -149,25 +148,7 @@ def build(cams, spf_checked=None):
     manifest["files"] = files
     with open(mpath, "w") as f:
         f.write(json.dumps(manifest, indent=2) + "\n")
-    update_readme(manifest)
     return changed
-
-
-def update_readme(manifest):
-    """Keep the "Last checked" line at the top of the README in step with the manifest."""
-    def day(iso):
-        d = datetime.date.fromisoformat(iso)
-        return f"{d.day} {d:%B %Y}"
-    line = (f"Last checked against SPF: **{day(manifest['spf_checked'])}**. "
-            f"Data version {manifest['version']}, last changed {day(manifest['updated'])}. "
-            "A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras "
-            "are added, moved or removed.")
-    path = os.path.join(ROOT, "README.md")
-    with open(path) as f:
-        text = f.read()
-    text = re.sub(r"^Last checked against SPF:.*$", line, text, count=1, flags=re.M)
-    with open(path, "w") as f:
-        f.write(text)
 
 
 if __name__ == "__main__":

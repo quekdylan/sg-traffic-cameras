@@ -1,10 +1,12 @@
 # Singapore Traffic Enforcement Cameras
 
+[![SPF checked](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.spf_checked&label=SPF%20checked&color=brightgreen)](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml) [![Data updated](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.updated&label=data%20updated&color=blue)](https://github.com/quekdylan/sg-traffic-cameras/releases/latest) [![Cameras](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.cameras&label=cameras&color=blue)](https://quekdylan.github.io/sg-traffic-cameras/map/) [![Latest release](https://img.shields.io/github/v/release/quekdylan/sg-traffic-cameras?label=release)](https://github.com/quekdylan/sg-traffic-cameras/releases/latest) [![Monthly SPF check](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml/badge.svg)](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml) [![License: ODbL](https://img.shields.io/badge/license-ODbL%201.0-lightgrey)](LICENSE)
+
 Locations of all 350 traffic enforcement cameras published by the Singapore Police Force (SPF). Each camera comes with a reviewed **approach path**: the stretch of road (up to about 400 m) that traffic drives along toward the camera. The data is meant for GPS camera-warning devices.
 
 A path tells you more than a point does. A device can check that you're on the camera's road and heading toward it, so it doesn't warn for the opposite carriageway, a parallel road or a flyover. It can also measure the distance to the camera along the road, so the distance stays accurate around bends.
 
-Last checked against SPF: **11 October 2026**. Data version 20261012, last changed 11 October 2026. A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras are added, moved or removed.
+The badges above update automatically. A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras are added, moved or removed.
 
 ## Map
 
