@@ -1,21 +1,21 @@
 {
-  "version": 20261013,
-  "updated": "2026-10-11",
+  "version": 20261014,
+  "updated": "2026-10-12",
   "spf_checked": "2026-10-11",
   "cameras": 350,
-  "path_points": 1258,
+  "path_points": 1257,
   "files": {
     "data/cameras.csv": {
-      "bytes": 60149,
-      "sha256": "b14f7773bbb148d1b8e165995223681d2e0d6e103958faafdba9dd5be8f662bb"
+      "bytes": 60129,
+      "sha256": "f6f74f3462fb3ad6b7504670302041908541ac85052a9c2cbbe10dfa98ce0988"
     },
     "data/cameras.json": {
-      "bytes": 79913,
-      "sha256": "78234bbae2c8957e28e7bdeecf9ad5e826d2c565ac9227a599e2c3584ee8e03a"
+      "bytes": 79891,
+      "sha256": "0f96a474e715094c2c763e89f6778f9876fd01172868ac0e43becc025c988116"
     },
     "data/camera_data.h": {
-      "bytes": 48111,
-      "sha256": "7a5e48475d2f4f2578754900fb6608449f235d67b8cd0b8aaa7a36b70a77f870"
+      "bytes": 48089,
+      "sha256": "658d0654e279bb4f086f27cf4b42e03c7864f93ffd0590f7d8f250aa29cde557"
     }
   },
   "max_id": 350
