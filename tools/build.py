@@ -171,7 +171,9 @@ def update_readme(manifest, cams):
         d = datetime.date.fromisoformat(iso)
         return f"{d.day} {d:%B %Y}"
     line = (f"Last checked against SPF: **{day(manifest['spf_checked'])}**. "
-            f"Data version {manifest['version']}, last changed {day(manifest['updated'])}.")
+            f"Data version {manifest['version']}, last changed {day(manifest['updated'])}. "
+            "A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras "
+            "are added, moved or removed.")
     path = os.path.join(ROOT, "README.md")
     with open(path) as f:
         text = f.read()

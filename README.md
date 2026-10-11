@@ -4,11 +4,11 @@ Locations of all 350 traffic enforcement cameras published by the Singapore Poli
 
 A path tells you more than a point does. A device can check that you're on the camera's road and heading toward it, so it doesn't warn for the opposite carriageway, a parallel road or a flyover. It can also measure the distance to the camera along the road, so the distance stays accurate around bends.
 
-Last checked against SPF: **11 October 2026**. Data version 20261011, last changed 11 October 2026.
+Last checked against SPF: **11 October 2026**. Data version 20261011, last changed 11 October 2026. A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras are added, moved or removed.
 
 ## Map
 
-Red: red light. Orange: fixed and average speed. Yellow: mobile speed and police laser. Purple: traffic violation (TVEC). Click a marker for its details.
+[Open the full map](https://quekdylan.github.io/sg-traffic-cameras/map/) to see every camera coloured by type, with its approach path.
 
 <!-- map:start -->
 ```geojson
@@ -25,7 +25,7 @@ Red: red light. Orange: fixed and average speed. Yellow: mobile speed and police
 | `data/camera_data.h` | C/C++ header for microcontrollers (ESP32 etc.), about 12 KB of flash |
 | `manifest.json` | Data version, counts and SHA-256 of each file, for devices that check for updates |
 | `review/` | Cameras waiting for their paths to be checked, and the result of the last SPF check |
-| `tools/`, `editor/` | The scripts and path editor that keep the data up to date |
+| `tools/`, `editor/`, `map/` | The update scripts, the path editor and the map page |
 
 ## Fields
 
@@ -54,14 +54,6 @@ In `camera_data.h`, coordinates are integers in micro-degrees (degrees × 1,000,
 | 5 | Police speed laser camera. Manned by Traffic Police and deployed at random, so usually not present. | Police Speed Laser Camera Locations | 50 |
 | 6 | Traffic violation enforcement camera (TVEC) | Traffic Violation Enforcement Camera Locations | 9 |
 
-## How it was made
-
-1. Camera positions, types and descriptions come straight from the three SPF pages (see Sources). Every row has been matched against them.
-2. Each camera was matched to the nearest roads in OpenStreetMap. Candidate approach paths were traced back along the road against the direction of travel.
-3. Every camera's path was then reviewed by hand on a map. Where needed, the right carriageway or junction approach was picked, or the path was redrawn.
-
-Paths are a best effort. Cameras get added, moved and removed, so check `manifest.json` for the date of the last check.
-
 ## Using it on a device
 
 A simple approach that works well:
@@ -72,16 +64,6 @@ A simple approach that works well:
 4. Warn when the distance is under `max(150 m, speed × 12 s)` and two fixes in a row match. Clear the warning once you pass the end of the path.
 
 To keep a device up to date, download `manifest.json` from this repo, compare its `version` with the one stored on the device, and if it's newer, download the data files and check them against the SHA-256 values listed.
-
-## How it's kept up to date
-
-A GitHub Actions workflow (`.github/workflows/spf-check.yml`) checks the SPF pages on the 1st of every month:
-
-- Cameras SPF has removed, and changed descriptions, are updated in the data straight away.
-- New cameras, and cameras that have moved, get a best-guess approach path from OpenStreetMap and wait in `review/pending.json`. The workflow opens a "Cameras to review" issue.
-- The paths are checked in the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/). Its **Submit reviewed cameras** button opens a pre-filled file on GitHub. Committing that file runs `.github/workflows/apply-review.yml`, which adds the cameras to the data.
-
-The "Last checked" line at the top of this README is updated after every check. `manifest.json` carries the same information for devices: its `version` goes up whenever a data file changes, and `spf_checked` is the date of the last check.
 
 ## Sources
 
