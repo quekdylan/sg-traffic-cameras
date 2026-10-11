@@ -1,0 +1,51 @@
+name: Monthly SPF check
+
+on:
+  schedule:
+    - cron: "7 1 1 * *"  # 09:07 Singapore time on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare with the SPF camera lists
+        id: check
+        run: python3 tools/update.py check
+
+      - name: Commit
+        run: |
+          cat review/summary.md >> "$GITHUB_STEP_SUMMARY"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data manifest.json review
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -q -m "SPF check $(date -u +%F)" -m "$(cat review/summary.md)"
+          git push
+
+      - name: Ask for a review of new cameras
+        if: steps.check.outputs.new_review != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          editor="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/editor/"
+          body="$(cat review/summary.md)
+
+          Check their approach paths here: $editor
+          Mark each one reviewed, then press **Submit reviewed cameras** and commit the file GitHub opens. They're published as soon as it's committed."
+          num=$(gh issue list --state open --search "Cameras to review in:title" --json number --jq '.[0].number')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body "$body"
+          else
+            gh issue create --title "Cameras to review" --body "$body"
+          fi

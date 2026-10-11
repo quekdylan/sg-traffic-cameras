@@ -4,7 +4,7 @@ Locations of all 350 traffic enforcement cameras published by the Singapore Poli
 
 A path tells you more than a point does. A device can check that you're on the camera's road and heading toward it, so it doesn't warn for the opposite carriageway, a parallel road or a flyover. It can also measure the distance to the camera along the road, so the distance stays accurate around bends.
 
-Last checked against SPF: **11 October 2026**.
+The data is checked against SPF every month. `spf_checked` in `manifest.json` has the date of the last check.
 
 ## Files
 
@@ -14,6 +14,8 @@ Last checked against SPF: **11 October 2026**.
 | `data/cameras.json` | Same data as JSON |
 | `data/camera_data.h` | C/C++ header for microcontrollers (ESP32 etc.), about 12 KB of flash |
 | `manifest.json` | Data version, counts and SHA-256 of each file, for devices that check for updates |
+| `review/` | Cameras waiting for their paths to be checked, and the result of the last SPF check |
+| `tools/`, `editor/` | The scripts and path editor that keep the data up to date |
 
 ## Fields
 
@@ -60,6 +62,16 @@ A simple approach that works well:
 4. Warn when the distance is under `max(150 m, speed × 12 s)` and two fixes in a row match. Clear the warning once you pass the end of the path.
 
 To keep a device up to date, download `manifest.json` from this repo, compare its `version` with the one stored on the device, and if it's newer, download the data files and check them against the SHA-256 values listed.
+
+## How it's kept up to date
+
+A GitHub Actions workflow (`.github/workflows/spf-check.yml`) checks the SPF pages on the 1st of every month:
+
+- Cameras SPF has removed, and changed descriptions, are updated in the data straight away.
+- New cameras, and cameras that have moved, get a best-guess approach path from OpenStreetMap and wait in `review/pending.json`. The workflow opens a "Cameras to review" issue.
+- The paths are checked in the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/). Its **Submit reviewed cameras** button opens a pre-filled file on GitHub. Committing that file runs `.github/workflows/apply-review.yml`, which adds the cameras to the data.
+
+`manifest.json`'s `version` goes up whenever a data file changes. `spf_checked` is the date of the last check.
 
 ## Sources
 

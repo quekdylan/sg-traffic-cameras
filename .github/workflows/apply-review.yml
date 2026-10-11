@@ -1,0 +1,44 @@
+name: Publish reviewed cameras
+
+on:
+  push:
+    branches: [main]
+    paths: ["review/submitted/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add the reviewed paths to the data
+        id: apply
+        run: python3 tools/update.py apply
+
+      - name: Commit
+        run: |
+          cat review/summary.md >> "$GITHUB_STEP_SUMMARY"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data manifest.json review
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -q -m "Publish reviewed cameras" -m "$(cat review/summary.md)"
+          git push
+
+      - name: Update the review issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          num=$(gh issue list --state open --search "Cameras to review in:title" --json number --jq '.[0].number')
+          [ -z "$num" ] && exit 0
+          gh issue comment "$num" --body-file review/summary.md
+          if [ "${{ steps.apply.outputs.pending }}" = "0" ]; then gh issue close "$num"; fi
