@@ -20,7 +20,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
 FILES = ("data/cameras.csv", "data/cameras.json", "data/camera_data.h")
 
-MAP_COLORS = {1: "#ff3b30", 2: "#ff9f0a", 3: "#ffd60a", 4: "#ff9f0a", 5: "#ffd60a", 6: "#bf5af2"}
 TYPES = [  # (code, enum name, label shown on screen)
     (1, "RedLight", "Red light camera"),
     (2, "FixedSpeed", "Speed camera"),
@@ -150,23 +149,12 @@ def build(cams, spf_checked=None):
     manifest["files"] = files
     with open(mpath, "w") as f:
         f.write(json.dumps(manifest, indent=2) + "\n")
-    update_readme(manifest, cams)
+    update_readme(manifest)
     return changed
 
 
-def map_block(cams):
-    """GeoJSON code block of every camera, which GitHub renders as an interactive map."""
-    features = [{"type": "Feature",
-                 "geometry": {"type": "Point", "coordinates": [c["lon"], c["lat"]]},
-                 "properties": {"title": f"#{c['id']} {c['category']}: {c['location']}",
-                                "marker-color": MAP_COLORS[c["type"]], "marker-size": "small"}}
-                for c in cams]
-    geo = json.dumps({"type": "FeatureCollection", "features": features}, separators=(",", ":"))
-    return f"```geojson\n{geo}\n```"
-
-
-def update_readme(manifest, cams):
-    """Keep the "Last checked" line and the camera map in the README in step with the data."""
+def update_readme(manifest):
+    """Keep the "Last checked" line at the top of the README in step with the manifest."""
     def day(iso):
         d = datetime.date.fromisoformat(iso)
         return f"{d.day} {d:%B %Y}"
@@ -178,8 +166,6 @@ def update_readme(manifest, cams):
     with open(path) as f:
         text = f.read()
     text = re.sub(r"^Last checked against SPF:.*$", line, text, count=1, flags=re.M)
-    text = re.sub(r"(<!-- map:start -->).*?(<!-- map:end -->)", lambda m: f"{m.group(1)}\n{map_block(cams)}\n{m.group(2)}",
-                  text, count=1, flags=re.S)
     with open(path, "w") as f:
         f.write(text)
 
