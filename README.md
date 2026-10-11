@@ -4,7 +4,7 @@ Locations of all 350 traffic enforcement cameras published by the Singapore Poli
 
 A path tells you more than a point does. A device can check that you're on the camera's road and heading toward it, so it doesn't warn for the opposite carriageway, a parallel road or a flyover. It can also measure the distance to the camera along the road, so the distance stays accurate around bends.
 
-Last checked against SPF: **11 October 2026**. Data version 20261011, last changed 11 October 2026. A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras are added, moved or removed.
+Last checked against SPF: **11 October 2026**. Data version 20261012, last changed 11 October 2026. A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras are added, moved or removed.
 
 ## Map
 
