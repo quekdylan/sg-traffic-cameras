@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Review New Cameras</title>
+<title>Camera Path Editor</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -111,7 +111,7 @@ h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .01em; text-w
 <div class="app">
   <aside class="side">
     <header>
-      <h1>Review new cameras</h1>
+      <h1>Camera path editor</h1>
       <div class="progress"><div class="bar"><i id="bar"></i></div><span id="prog">0 of 0 checked</span></div>
       <div class="filters" role="group" aria-label="Filter cameras">
         <button class="chip" data-f="todo" aria-pressed="true">To check</button>
@@ -133,18 +133,29 @@ h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .01em; text-w
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-// Cameras waiting for review, read straight from the repo so the page always shows the latest list.
+// Cameras waiting for review plus every published camera, read straight from the repo so the page
+// always shows the latest data.
 const REPO = location.hostname.endsWith('.github.io')
   ? location.hostname.split('.')[0] + '/' + location.pathname.split('/')[1]
   : 'quekdylan/sg-traffic-cameras';
-fetch('https://raw.githubusercontent.com/' + REPO + '/main/review/pending.json?t=' + Date.now(), { cache: 'no-store' })
-  .then(r => r.ok ? r.json() : { cameras: [] })
-  .catch(() => ({ cameras: [] }))
-  .then(P => {
+const raw = f => fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + f + '?t=' + Date.now(), { cache: 'no-store' })
+  .then(r => r.ok ? r.json() : null).catch(() => null);
+Promise.all([raw('review/pending.json'), raw('data/cameras.json')]).then(([P, D]) => {
+const pending = (P && P.cameras) || [];
+const waiting = new Set(pending.map(c => c.id));
+// A published camera's only option is its current path, so editing it works the same way.
+const published = (D || []).filter(c => !waiting.has(c.id)).map(c => {
+  const a = c.path[c.path.length - 2], b = c.path[c.path.length - 1], k = Math.cos(1.35 * Math.PI / 180);
+  const m = (p, q) => Math.hypot((q[0] - p[0]) * 110574, (q[1] - p[1]) * 110574 * k);
+  const bearing = Math.round((Math.atan2((b[1] - a[1]) * k, b[0] - a[0]) * 180 / Math.PI + 360) % 360);
+  const len = Math.round(c.path.slice(1).reduce((s, p, i) => s + m(c.path[i], p), 0));
+  return { id: c.id, type: c.type, category: c.category, location: c.location, lat: c.lat, lon: c.lon, conf: 'high', def: 0,
+           cands: [{ road: c.location, bearing, dist: 0, len, pts: c.path }] };
+});
 const DATA = {
-  cameras: P.cameras.map(c => Object.assign(c, { id: String(c.id), type: String(c.type), cat: c.category, loc: c.location,
-                                                  flags: c.why ? 'Why: ' + c.why : '' })),
-  roads: [].concat(...P.cameras.map(c => c.roads || [])),
+  cameras: pending.concat(published).map(c => Object.assign(c, { id: String(c.id), type: String(c.type), cat: c.category,
+                                                                   loc: c.location, flags: c.why ? 'Why: ' + c.why : '' })),
+  roads: [].concat(...pending.map(c => c.roads || [])),
 };
 const CAMS = DATA.cameras;
 const ROADS = DATA.roads;
@@ -202,7 +213,7 @@ function status(c) {
   return c.conf;
 }
 const needsCheck = c => c.conf !== 'high' || c.def === null;
-const STATUS_TEXT = { done: 'Reviewed', none: 'No path', low: 'Low', medium: 'Medium', high: 'Auto' };
+const STATUS_TEXT = { done: 'Reviewed', none: 'No path', low: 'Low', medium: 'Medium', high: 'Published' };
 const typeName = c => c.cat || (c.type === '1' ? 'Red light' : 'Type ' + c.type);
 
 // ---------- saving
@@ -225,7 +236,7 @@ function visible() {
     if (filter === 'done' && s !== 'done') return false;
     if (!q) return true;
     const road = c.cands[0] ? c.cands[0].road.toLowerCase() : '';
-    return c.id === q || road.includes(q);
+    return c.id === q || road.includes(q) || c.loc.toLowerCase().includes(q);
   }).sort((a, b) => (RANK[a.conf] - RANK[b.conf]) || (+a.id - +b.id));
 }
 function renderList() {
@@ -353,7 +364,9 @@ function next(step) {
 // ---------- map
 const map = L.map('map', { preferCanvas: true, zoomControl: true, attributionControl: true, maxZoom: 21, minZoom: 11 })
   .setView([LAT0, 103.8198], 12);
-map.attributionControl.setPrefix(false).addAttribution('Roads © OpenStreetMap contributors');
+map.attributionControl.setPrefix(false);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, opacity: 0.7,
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
 const roadLayer = L.layerGroup().addTo(map);
 const camLayer = L.layerGroup().addTo(map);
 const selLayer = L.layerGroup().addTo(map);

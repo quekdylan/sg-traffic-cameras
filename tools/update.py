@@ -9,7 +9,8 @@ straight away. New cameras, and cameras that moved, get best-guess approach path
 in review/pending.json until their paths are checked in the editor (editor/index.html).
 
 apply: reads review/submitted/*.json (written by the editor's Submit button), moves those
-cameras from pending into the data, and deletes the submitted files.
+cameras from pending into the data or replaces the paths of published cameras, and deletes
+the submitted files.
 
 Both rebuild the data files and manifest, and write a short summary to review/summary.md.
 """
@@ -173,24 +174,35 @@ def apply():
             for cid, e in json.load(f).items():
                 submitted[int(cid)] = e
     data = build.load()
-    have = {c["id"] for c in data}
-    added, skipped = [], []
+    added, updated, skipped = [], [], []
+    by_id = {c["id"]: c for c in data}
     for cid, e in sorted(submitted.items()):
-        c = pending.get(cid)
         pts = e.get("path") if isinstance(e, dict) else None
-        ok = (c is not None and isinstance(pts, list) and 2 <= len(pts) <= 255 and
+        ok = (isinstance(pts, list) and 2 <= len(pts) <= 255 and
               all(isinstance(p, list) and len(p) == 2 and 1.1 < p[0] < 1.5 and 103.5 < p[1] < 104.2 for p in pts))
-        if not ok or cid in have:
-            skipped.append(f"- #{cid}: " + ("not waiting for review" if c is None or cid in have else "path is not valid"))
+        if not ok:
+            skipped.append(f"- #{cid}: path is not valid")
             continue
-        data.append(dict({k: c[k] for k in FIELDS}, path=[[round(a, 6), round(b, 6)] for a, b in pts]))
-        added.append(f"- {label(c)}")
-        del pending[cid]
+        path = [[round(a, 6), round(b, 6)] for a, b in pts]
+        if cid in pending:
+            c = pending.pop(cid)
+            data.append(dict({k: c[k] for k in FIELDS}, path=path))
+            added.append(f"- {label(c)}")
+        elif cid in by_id:
+            if by_id[cid]["path"] != path:
+                by_id[cid]["path"] = path
+                updated.append(f"- {label(by_id[cid])}")
+        else:
+            skipped.append(f"- #{cid}: no such camera")
     changed = build.build(data)
     save_pending(list(pending.values()))
     for path in files:
         os.remove(path)
-    lines = [f"Published {len(added)} reviewed camera(s)."] + added
+    lines = [f"Published {len(added)} new camera(s) and updated {len(updated)} path(s)."]
+    if added:
+        lines += ["", "New:"] + added
+    if updated:
+        lines += ["", "Path updated:"] + updated
     if skipped:
         lines += ["", "Ignored:"] + skipped
     lines += ["", f"{len(pending)} camera(s) still waiting for review."]
