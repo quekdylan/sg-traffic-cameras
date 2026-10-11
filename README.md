@@ -14,6 +14,17 @@ Data is updated monthly. A GitHub Actions workflow checks the SPF pages once a m
 
 [Open the interactive map](https://quekdylan.github.io/sg-traffic-cameras/map/) to zoom in, see each camera's approach path, and filter by type.
 
+## Camera types
+
+| Code | Type | Count |
+|---|---|---|
+| 1 | Red light camera | 241 |
+| 2 | Fixed speed camera | 33 |
+| 3 | Mobile speed camera | 5 |
+| 4 | Average speed camera (Tanah Merah Coast Road) | 12 |
+| 5 | Police speed laser camera | 50 |
+| 6 | Traffic violation enforcement camera (TVEC) | 9 |
+
 ## Files
 
 | File | What it is |
@@ -41,16 +52,6 @@ Data is updated monthly. A GitHub Actions workflow checks the SPF pages once a m
 
 In `camera_data.h`, coordinates are integers in micro-degrees (degrees × 1,000,000). `kCameras[i].firstPoint` and `pointCount` index into `kCameraPoints`.
 
-## Camera types
-
-| Code | Type | Count |
-|---|---|---|
-| 1 | Red light camera | 241 |
-| 2 | Fixed speed camera | 33 |
-| 3 | Mobile speed camera | 5 |
-| 4 | Average speed camera (Tanah Merah Coast Road) | 12 |
-| 5 | Police speed laser camera | 50 |
-| 6 | Traffic violation enforcement camera (TVEC) | 9 |
 
 ## Using it on a device
 
