@@ -3,6 +3,7 @@
 
     python3 tools/update.py check   compare SPF with the data and update it
     python3 tools/update.py apply   publish paths submitted from the path editor
+    python3 tools/update.py proposal FILE...   check files proposed in a pull request
 
 check: cameras that SPF removed, or whose description changed, are updated in the data
 straight away. New cameras, and cameras that moved, get best-guess approach paths and wait
@@ -64,6 +65,50 @@ def write_summary(lines):
 
 def label(c):
     return f"#{c['id']} {c['category']}: {c['location']} ({c['lat']}, {c['lon']})"
+
+
+MAX_END_M = 150      # a path must end this close to its camera
+MIN_LEN_M, MAX_LEN_M = 20, 1500
+
+
+def path_problem(cam, pts):
+    """Why a submitted path can't be used for this camera, or None if it's fine."""
+    if not isinstance(pts, list) or not 2 <= len(pts) <= 255:
+        return "needs 2 to 255 points"
+    for p in pts:
+        if not (isinstance(p, list) and len(p) == 2 and
+                all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in p)):
+            return "has a point that isn't a [lat, lon] pair"
+        if not (1.1 < p[0] < 1.5 and 103.5 < p[1] < 104.2):
+            return "goes outside Singapore"
+    end = build.metres(pts[-1], (cam["lat"], cam["lon"]))
+    if end > MAX_END_M:
+        return f"ends {end:.0f} m from the camera (it must end within {MAX_END_M} m)"
+    length = sum(build.metres(a, b) for a, b in zip(pts, pts[1:]))
+    if not MIN_LEN_M <= length <= MAX_LEN_M:
+        return f"is {length:.0f} m long (it must be {MIN_LEN_M} to {MAX_LEN_M} m)"
+    return None
+
+
+def load_submissions(files):
+    """Merge submitted files into {camera id: path}. Returns (submitted, problems)."""
+    submitted, problems = {}, []
+    for path in files:
+        name = os.path.basename(path)
+        try:
+            with open(path) as f:
+                body = json.load(f)
+            if not isinstance(body, dict):
+                raise ValueError("not a JSON object")
+        except (OSError, ValueError) as ex:
+            problems.append(f"- {name}: can't be read ({ex})")
+            continue
+        for key, e in body.items():
+            if not (isinstance(key, str) and key.isdigit() and isinstance(e, dict)):
+                problems.append(f"- {name}: entry {key!r} isn't a camera id with a path")
+                continue
+            submitted[int(key)] = e.get("path")
+    return submitted, problems
 
 
 def match(spf_rows, current):
@@ -170,32 +215,27 @@ def check():
 def apply():
     pending = {c["id"]: c for c in load_pending()}
     files = sorted(glob.glob(os.path.join(SUBMITTED, "*.json")))
-    submitted = {}
-    for path in files:
-        with open(path) as f:
-            for cid, e in json.load(f).items():
-                submitted[int(cid)] = e
+    submitted, skipped = load_submissions(files)
     data = build.load()
-    added, updated, skipped = [], [], []
+    added, updated = [], []
     by_id = {c["id"]: c for c in data}
-    for cid, e in sorted(submitted.items()):
-        pts = e.get("path") if isinstance(e, dict) else None
-        ok = (isinstance(pts, list) and 2 <= len(pts) <= 255 and
-              all(isinstance(p, list) and len(p) == 2 and 1.1 < p[0] < 1.5 and 103.5 < p[1] < 104.2 for p in pts))
-        if not ok:
-            skipped.append(f"- #{cid}: path is not valid")
+    for cid, pts in sorted(submitted.items()):
+        cam = pending.get(cid) or by_id.get(cid)
+        if cam is None:
+            skipped.append(f"- #{cid}: no such camera")
+            continue
+        problem = path_problem(cam, pts)
+        if problem:
+            skipped.append(f"- #{cid}: path {problem}")
             continue
         path = [[round(a, 6), round(b, 6)] for a, b in pts]
         if cid in pending:
             c = pending.pop(cid)
             data.append(dict({k: c[k] for k in FIELDS}, path=path))
             added.append(f"- {label(c)}")
-        elif cid in by_id:
-            if by_id[cid]["path"] != path:
-                by_id[cid]["path"] = path
-                updated.append(f"- {label(by_id[cid])}")
-        else:
-            skipped.append(f"- #{cid}: no such camera")
+        elif by_id[cid]["path"] != path:
+            by_id[cid]["path"] = path
+            updated.append(f"- {label(by_id[cid])}")
     changed = build.build(data)
     save_pending(list(pending.values()))
     for path in files:
@@ -212,5 +252,40 @@ def apply():
     output(data_changed=str(changed).lower(), pending=len(pending))
 
 
+def proposal(files):
+    """Report on submitted files in a pull request. Exits 1 if any of it can't be used."""
+    submitted, problems = load_submissions(files)
+    pending = {c["id"]: c for c in load_pending()}
+    by_id = {c["id"]: c for c in build.load()}
+    rows = []
+    for cid, pts in sorted(submitted.items()):
+        cam = pending.get(cid) or by_id.get(cid)
+        problem = "no such camera" if cam is None else path_problem(cam, pts)
+        if problem:
+            problems.append(f"- #{cid}: path {problem}" if cam else f"- #{cid}: {problem}")
+            continue
+        length = sum(build.metres(a, b) for a, b in zip(pts, pts[1:]))
+        end = build.metres(pts[-1], (cam["lat"], cam["lon"]))
+        if cid in pending:
+            what = "new camera"
+        else:
+            old = cam["path"]
+            moved = max(min(build.metres(p, q) for q in old) for p in pts)
+            what = f"path changed, moves up to {moved:.0f} m from the current one"
+        rows.append(f"- {label(cam)}: {what}. {length:.0f} m long, ends {end:.0f} m from the camera. "
+                    f"[Current path](https://quekdylan.github.io/sg-traffic-cameras/editor/?id={cid})")
+    lines = [f"**{len(rows)} camera(s) in this proposal.**", ""] + rows
+    if problems:
+        lines += ["", "**Can't be used as is:**"] + problems
+    if not submitted and not problems:
+        lines += ["No cameras in the submitted file."]
+    print("\n".join(lines))
+    sys.exit(1 if problems or not submitted else 0)
+
+
 if __name__ == "__main__":
-    {"check": check, "apply": apply}[sys.argv[1] if len(sys.argv) > 1 else ""]()
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "proposal":
+        proposal(sys.argv[2:])
+    else:
+        {"check": check, "apply": apply}[cmd]()

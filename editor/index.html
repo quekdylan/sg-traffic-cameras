@@ -165,6 +165,16 @@ const chosen = c => edit(c.id).path ? -1 : (edit(c.id).cand ?? c.def);
 // A change is an approved new camera, or a published camera whose path was edited.
 const isChange = c => c.pending ? !!edit(c.id).approved && !!pathOf(c) : !!edit(c.id).path && !same(edit(c.id).path, c.path);
 const changes = () => CAMS.filter(isChange);
+// Same limits the publishing step enforces (tools/update.py), so a submission never gets dropped.
+function problem(c) {
+  const p = pathOf(c);
+  if (!p || p.length < 2) return 'needs at least 2 points';
+  if (p.length > 255) return 'has too many points';
+  const end = dist(p[p.length - 1], [c.lat, c.lon]), len = pathLen(p);
+  if (end > 150) return 'ends ' + Math.round(end) + ' m from the camera. Finish the path at the camera.';
+  if (len < 20 || len > 1500) return 'is ' + Math.round(len) + ' m long. Keep it between 20 and 1500 m.';
+  return null;
+}
 function status(c) {
   if (c.pending) return edit(c.id).approved ? ['approved', 'Approved'] : ['new', 'To check'];
   return isChange(c) ? ['changed', 'Changed'] : ['published', 'Published'];
@@ -335,11 +345,14 @@ function renderSubmit() {
     h += '<p class="empty">No changes yet.</p></div>';
   } else {
     h += '<div>' + list.map(c => '<div class="chg"><div>#' + c.id + ' ' + esc(TYPES[c.type][0]) + '<small>' + esc(c.location) + '</small><small>' +
-      (c.pending ? 'New camera, approved' : 'Path changed') + '</small></div><button class="btn" data-drop="' + c.id + '">Remove</button></div>').join('') + '</div>' +
+      (c.pending ? 'New camera, approved' : 'Path changed') + '</small>' +
+      (problem(c) ? '<small class="why">Path ' + esc(problem(c)) + '</small>' : '') +
+      '</div><button class="btn" data-drop="' + c.id + '">Remove</button></div>').join('') + '</div>' +
       '<ol class="steps"><li>Press <b>Submit on GitHub</b>. GitHub opens with your changes filled in (sign in if asked).</li>' +
       '<li>If it\'s your repo, press <b>Commit changes</b>. The data updates within a couple of minutes.</li>' +
       '<li>Everyone else: press <b>Propose changes</b>, then <b>Create pull request</b>. It goes live once the owner accepts it.</li></ol>' +
-      '<button class="btn primary big" id="submit">Submit on GitHub</button>' +
+      (list.some(problem) ? '<div class="note">Fix the paths marked above before submitting.</div>' : '') +
+      '<button class="btn primary big" id="submit"' + (list.some(problem) ? ' disabled' : '') + '>Submit on GitHub</button>' +
       '<div class="hint" id="submitted"></div></div>';
   }
   bodyEl.innerHTML = h;

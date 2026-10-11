@@ -1,0 +1,58 @@
+name: Check proposed fix
+
+# Runs on pull requests from anyone. It uses this repo's own copy of the scripts (never code
+# from the pull request) and only reads the proposed files as data.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # the base branch, not the pull request
+
+      - name: Check the proposed files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/proposal"
+          ok=true
+          other=""
+          mapfile -t files < <(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json files --jq '.files[].path')
+          for f in "${files[@]}"; do
+            if [[ "$f" =~ ^review/submitted/[A-Za-z0-9._-]+\.json$ ]]; then
+              gh api -H "Accept: application/vnd.github.raw" "repos/$HEAD_REPO/contents/$f?ref=$HEAD_SHA" \
+                > "$RUNNER_TEMP/proposal/$(basename "$f")" || ok=false
+            else
+              other="$other\n- \`$f\`"
+              ok=false
+            fi
+          done
+          {
+            echo "### Proposed fix check"
+            echo
+            if ls "$RUNNER_TEMP"/proposal/*.json > /dev/null 2>&1; then
+              python3 tools/update.py proposal "$RUNNER_TEMP"/proposal/*.json || ok=false
+            else
+              echo "No proposed camera paths found."
+              ok=false
+            fi
+            if [ -n "$other" ]; then
+              echo
+              echo "**This pull request also changes files outside \`review/submitted/\`.** Proposals from the editor only add one file there, so don't merge this unless you've checked every change:"
+              printf '%b\n' "$other"
+            fi
+            echo
+            if $ok; then echo "✅ Safe to merge: it only adds camera paths, and they all pass the checks."; else echo "❌ Don't merge as is."; fi
+          } > comment.md
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file comment.md --edit-last \
+            || gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file comment.md
+          $ok
