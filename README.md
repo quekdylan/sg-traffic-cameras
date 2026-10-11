@@ -4,7 +4,7 @@ Locations of all 350 traffic enforcement cameras published by the Singapore Poli
 
 A path tells you more than a point does. A device can check that you're on the camera's road and heading toward it, so it doesn't warn for the opposite carriageway, a parallel road or a flyover. It can also measure the distance to the camera along the road, so the distance stays accurate around bends.
 
-The data is checked against SPF every month. `spf_checked` in `manifest.json` has the date of the last check.
+Last checked against SPF: **11 October 2026**. Data version 20261011, last changed 11 October 2026.
 
 ## Files
 
@@ -71,7 +71,7 @@ A GitHub Actions workflow (`.github/workflows/spf-check.yml`) checks the SPF pag
 - New cameras, and cameras that have moved, get a best-guess approach path from OpenStreetMap and wait in `review/pending.json`. The workflow opens a "Cameras to review" issue.
 - The paths are checked in the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/). Its **Submit reviewed cameras** button opens a pre-filled file on GitHub. Committing that file runs `.github/workflows/apply-review.yml`, which adds the cameras to the data.
 
-`manifest.json`'s `version` goes up whenever a data file changes. `spf_checked` is the date of the last check.
+The "Last checked" line at the top of this README is updated after every check. `manifest.json` carries the same information for devices: its `version` goes up whenever a data file changes, and `spf_checked` is the date of the last check.
 
 ## Sources
 
