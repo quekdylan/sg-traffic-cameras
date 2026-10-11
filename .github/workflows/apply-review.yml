@@ -17,6 +17,8 @@ concurrency:
 jobs:
   apply:
     runs-on: ubuntu-latest
+    outputs:
+      data_changed: ${{ steps.apply.outputs.data_changed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,3 +44,8 @@ jobs:
           [ -z "$num" ] && exit 0
           gh issue comment "$num" --body-file review/summary.md
           if [ "${{ steps.apply.outputs.pending }}" = "0" ]; then gh issue close "$num"; fi
+
+  release:
+    needs: apply
+    if: needs.apply.outputs.data_changed == 'true'
+    uses: ./.github/workflows/release.yml

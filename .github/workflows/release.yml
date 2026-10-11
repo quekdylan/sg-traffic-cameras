@@ -1,0 +1,43 @@
+name: Release
+
+# Publishes a GitHub release for the current data version, if it doesn't have one yet.
+# Called after every SPF check and every published review; can also be run by hand.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(jq -r .version manifest.json)
+          if gh release view "v$v" > /dev/null 2>&1; then
+            echo "v$v is already released"
+            exit 0
+          fi
+          {
+            echo "$(jq -r .cameras manifest.json) cameras, $(jq -r .path_points manifest.json) path points. Checked against the SPF camera lists on $(jq -r .spf_checked manifest.json)."
+            echo
+            if gh release view > /dev/null 2>&1 && [ -f review/summary.md ]; then
+              echo "Latest change:"
+              echo
+              cat review/summary.md
+            else
+              echo "First release."
+            fi
+            echo
+            echo "Data © OpenStreetMap contributors and Singapore Police Force, under the ODbL 1.0."
+          } > notes.md
+          gh release create "v$v" data/cameras.csv data/cameras.json data/camera_data.h manifest.json \
+            --target main --title "Camera data v$v" --notes-file notes.md
