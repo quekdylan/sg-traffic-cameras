@@ -1,12 +1,12 @@
 # Singapore Traffic Enforcement Cameras
 
-[![SPF checked](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.spf_checked&label=SPF%20checked&color=brightgreen)](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml) [![Data updated](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.updated&label=data%20updated&color=blue)](https://github.com/quekdylan/sg-traffic-cameras/releases/latest) [![Cameras](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.cameras&label=cameras&color=blue)](https://quekdylan.github.io/sg-traffic-cameras/map/) [![Latest release](https://img.shields.io/github/v/release/quekdylan/sg-traffic-cameras?label=release)](https://github.com/quekdylan/sg-traffic-cameras/releases/latest) [![Monthly SPF check](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml/badge.svg)](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml) [![License: ODbL](https://img.shields.io/badge/license-ODbL%201.0-lightgrey)](LICENSE)
+[![Last checked](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.spf_checked&label=SPF%20checked&color=brightgreen)](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml) [![Last updated](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.updated&label=data%20updated&color=blue)](https://github.com/quekdylan/sg-traffic-cameras/releases/latest) [![Cameras](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fquekdylan%2Fsg-traffic-cameras%2Fmain%2Fmanifest.json&query=%24.cameras&label=cameras&color=blue)](https://quekdylan.github.io/sg-traffic-cameras/map/) [![Latest release](https://img.shields.io/github/v/release/quekdylan/sg-traffic-cameras?label=release)](https://github.com/quekdylan/sg-traffic-cameras/releases/latest) [![Monthly check](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml/badge.svg)](https://github.com/quekdylan/sg-traffic-cameras/actions/workflows/spf-check.yml)
 
-Locations of all 350 traffic enforcement cameras published by the Singapore Police Force (SPF). Each camera comes with a reviewed **approach path**: the stretch of road (up to about 400 m) that traffic drives along toward the camera. The data is meant for GPS camera-warning devices.
+This repo contains locations of all 350 traffic enforcement cameras published by the Singapore Police Force (SPF). It also contains manually reviewed approach paths and bearings for each camera.
 
-A path tells you more than a point does. A device can check that you're on the camera's road and heading toward it, so it doesn't warn for the opposite carriageway, a parallel road or a flyover. It can also measure the distance to the camera along the road, so the distance stays accurate around bends.
+The data is meant for GPS camera-warning devices. 
 
-The badges above update automatically. A GitHub Actions workflow checks the SPF pages every month and updates the data when cameras are added, moved or removed.
+Data is updated monthly. A GitHub Actions workflow checks the SPF pages once a month and updates the data when cameras are added, moved or removed, and is published after a manual review.
 
 ## Map
 
@@ -43,21 +43,21 @@ In `camera_data.h`, coordinates are integers in micro-degrees (degrees × 1,000,
 
 ## Camera types
 
-| Code | Type | SPF list | Count |
-|---|---|---|---|
-| 1 | Red light camera | Red Light Camera Locations | 241 |
-| 2 | Fixed speed camera (includes the LTA cameras on the KPE and MCE) | Fixed Speed Camera Locations | 33 |
-| 3 | Mobile speed camera | Mobile Speed Camera Locations | 5 |
-| 4 | Average speed camera (Tanah Merah Coast Road) | Average Speed Camera Locations | 12 |
-| 5 | Police speed laser camera. Manned by Traffic Police and deployed at random, so usually not present. | Police Speed Laser Camera Locations | 50 |
-| 6 | Traffic violation enforcement camera (TVEC) | Traffic Violation Enforcement Camera Locations | 9 |
+| Code | Type | Count |
+|---|---|---|
+| 1 | Red light camera | 241 |
+| 2 | Fixed speed camera | 33 |
+| 3 | Mobile speed camera | 5 |
+| 4 | Average speed camera (Tanah Merah Coast Road) | 12 |
+| 5 | Police speed laser camera | 50 |
+| 6 | Traffic violation enforcement camera (TVEC) | 9 |
 
 ## Using it on a device
 
 A simple approach that works well:
 
 1. Shortlist cameras within about 600 m of the GPS fix.
-2. For each one, find the closest segment of its path. It's a match if you're within about 25 m of it sideways and your heading is within about 35° of the segment's direction.
+2. For each one, find the closest segment of its path. It's a match if you're within about 20m of it sideways and your heading is within about 35° of the segment's direction.
 3. Distance to the camera = the distance along the path from your projected position to the last point.
 4. Warn when the distance is under `max(150 m, speed × 12 s)` and two fixes in a row match. Clear the warning once you pass the end of the path.
 
@@ -65,9 +65,9 @@ To keep a device up to date, download `manifest.json` from this repo, compare it
 
 ## Suggesting a fix
 
-Spotted a wrong path, or a camera that's missing or gone?
+Notice an issue with the data?
 
-- **Fix a path yourself:** open the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/), go to **Fix a camera** and find it by number or road name (or tap **Suggest a fix** on the [map](https://quekdylan.github.io/sg-traffic-cameras/map/)). Correct the path, then press **Review and submit** and **Submit on GitHub**. GitHub opens with your fix filled in: choose **Propose changes**, then **Create pull request**. It goes live once it's merged.
+- **Fix a path yourself:** open the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/), go to **Fix a camera** and find it by number or road name (or tap **Suggest a fix** on the [map](https://quekdylan.github.io/sg-traffic-cameras/map/)). Correct the path, then press **Review and submit** and **Submit on GitHub**. GitHub opens with your fix filled in: choose **Propose changes**, then **Create pull request**. It goes live once it's merged upon manual review.
 - **Or just report it:** [open an issue](https://github.com/quekdylan/sg-traffic-cameras/issues/new) with the camera number and what's wrong.
 
 ## Sources
