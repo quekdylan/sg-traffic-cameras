@@ -67,7 +67,7 @@ To keep a device up to date, download `manifest.json` from this repo, compare it
 
 Spotted a wrong path, or a camera that's missing or gone?
 
-- **Fix a path yourself:** open the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/), tap **All**, and find the camera by its number or road name. Correct the path, tap **Mark reviewed**, then **Submit reviewed cameras**. GitHub opens with your changes filled in. Choose **Propose changes**, which forks the repo for you, then open the pull request. Your fix goes live once it's merged.
+- **Fix a path yourself:** open the [path editor](https://quekdylan.github.io/sg-traffic-cameras/editor/), go to **Fix a camera** and find it by number or road name (or tap **Suggest a fix** on the [map](https://quekdylan.github.io/sg-traffic-cameras/map/)). Correct the path, then press **Review and submit** and **Submit on GitHub**. GitHub opens with your fix filled in: choose **Propose changes**, then **Create pull request**. It goes live once it's merged.
 - **Or just report it:** [open an issue](https://github.com/quekdylan/sg-traffic-cameras/issues/new) with the camera number and what's wrong.
 
 ## Sources

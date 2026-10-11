@@ -136,7 +136,9 @@ def check():
 
     for c in to_review:
         print(f"guessing a path for {label(c)}", file=sys.stderr)
-        out_pending.append(dict({k: c[k] for k in FIELDS}, **paths.suggest(c), why=c["_why"]))
+        guess = paths.suggest(c)
+        guess.pop("roads")  # the editor draws on an OpenStreetMap base map instead
+        out_pending.append(dict({k: c[k] for k in FIELDS}, **guess, why=c["_why"]))
 
     for c in out_data + out_pending:
         c.pop("_pending", None)

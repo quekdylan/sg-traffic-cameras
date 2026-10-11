@@ -5,372 +5,381 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Camera Path Editor</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one-screen tool. Sidebar (camera list + detail) beside a tile-less vector map; stacks on phones. */
 :root {
-  --bg: #eef1f3; --panel: #ffffff; --fg: #1a2127; --muted: #5d6973; --line: #d6dce1;
-  --map: #e6eaed; --road-major: #a2adb7; --road-minor: #c7cfd6; --road-label: #6b7781;
-  --accent: #d98200; --accent-fg: #ffffff; --path: #1d5fcc; --cand: #7f8b96;
-  --low: #c93c3c; --medium: #c98316; --high: #2b8f55; --done: #1d5fcc; --sel: #fff4dc;
-  --font-ui: "Barlow", "Segoe UI", Roboto, system-ui, sans-serif;
-  --font-data: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --bg: #f1f3f5; --panel: #ffffff; --fg: #1a2127; --muted: #5d6973; --line: #dde2e6; --hover: #f5f7f8;
+  --accent: #d97800; --accent-fg: #ffffff; --path: #1d5fcc; --cand: #6f7b86; --ok: #23864c; --warn: #b5470b;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #11161a; --panel: #182026; --fg: #e4e9ed; --muted: #94a1ac; --line: #2a343c;
-  --map: #0e1317; --road-major: #56636e; --road-minor: #323d46; --road-label: #8794a0;
-  --accent: #ffad2a; --accent-fg: #1a1205; --path: #5a9cff; --cand: #8a96a1;
-  --low: #ef6a6a; --medium: #f0a640; --high: #4cc07c; --done: #5a9cff; --sel: #2a2416; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #11161a; --panel: #182026; --fg: #e4e9ed; --muted: #94a1ac; --line: #2a343c;
-  --map: #0e1317; --road-major: #56636e; --road-minor: #323d46; --road-label: #8794a0;
-  --accent: #ffad2a; --accent-fg: #1a1205; --path: #5a9cff; --cand: #8a96a1;
-  --low: #ef6a6a; --medium: #f0a640; --high: #4cc07c; --done: #5a9cff; --sel: #2a2416; color-scheme: dark }
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #11161a; --panel: #182026; --fg: #e4e9ed; --muted: #97a3ad; --line: #2b353d; --hover: #1e272e;
+  --accent: #ffa62b; --accent-fg: #1a1205; --path: #5a9cff; --cand: #9aa6b0; --ok: #4cc07c; --warn: #f08a4b; color-scheme: dark } }
 
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; }
-.app { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; height: 100%; }
-.side { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); border-right: 1px solid var(--line); }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.4 var(--font); }
+button { font: inherit; color: inherit; }
+.app { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; height: 100%; }
+.side { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); }
 .mapwrap { position: relative; min-width: 0; }
-#map { position: absolute; inset: 0; background: var(--map); }
-.leaflet-container { background: var(--map); font-family: var(--font-ui); }
-.leaflet-control-attribution { background: var(--panel) !important; color: var(--muted) !important; }
-.leaflet-bar a { background: var(--panel); color: var(--fg); border-color: var(--line); }
+#map { position: absolute; inset: 0; }
 
-header { padding: 14px 16px 10px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
-h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .01em; text-wrap: balance; }
-.progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
-.bar { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--done); width: 0; transition: width .3s; }
-.save { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.save.warn { color: var(--low); }
-.filters { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { border: 1px solid var(--line); background: transparent; color: var(--fg); font: 500 13px var(--font-ui); padding: 4px 10px; border-radius: 999px; cursor: pointer; }
-.chip[aria-pressed="true"] { background: var(--fg); color: var(--panel); border-color: var(--fg); }
-#q { width: 100%; box-sizing: border-box; font: 14px var(--font-ui); padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+header { padding: 16px 16px 0; }
+h1 { margin: 0; font-size: 19px; }
+.sub { margin: 4px 0 12px; color: var(--muted); font-size: 13.5px; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tab { flex: 1; padding: 9px 4px; background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 600; color: var(--muted); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--accent); color: var(--accent-fg); font-size: 12px; }
 
-.list { flex: 1; overflow-y: auto; min-height: 120px; }
-.row { display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; align-items: center; padding: 7px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
-.row:hover { background: var(--bg); }
-.row[aria-current="true"] { background: var(--sel); }
-.row .id { font: 500 13px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
-.row .rd { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.pill { font: 600 11px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; border: 1px solid currentColor; }
-.pill.low { color: var(--low); } .pill.medium { color: var(--medium); } .pill.high { color: var(--high); }
-.pill.done { color: var(--done); } .pill.none { color: var(--low); }
+.body { flex: 1; overflow-y: auto; min-height: 0; }
+.pad { padding: 14px 16px; display: grid; gap: 12px; }
+.pad p { margin: 0; }
+.empty { color: var(--muted); }
+.search { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.hint { color: var(--muted); font-size: 13px; }
+.row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 10px 16px; background: none; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.row:hover { background: var(--hover); }
+.row .id { font: 13px var(--mono); color: var(--muted); }
+.row .loc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
-.detail { border-top: 1px solid var(--line); padding: 12px 16px 14px; display: grid; gap: 10px; max-height: 58%; overflow-y: auto; }
-.dhead { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.dhead b { font-size: 18px; }
-.dhead .t { color: var(--muted); font-size: 14px; }
-.spf { display: grid; gap: 2px; font-size: 14.5px; line-height: 1.35; }
-.flags { font: 12px var(--font-data); color: var(--muted); overflow-wrap: anywhere; }
-.label { font: 600 11px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.chip { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
+.chip.new { color: var(--accent); } .chip.approved, .chip.changed { color: var(--ok); } .chip.published { color: var(--muted); }
+
+.back { background: none; border: 0; padding: 0; color: var(--path); cursor: pointer; justify-self: start; }
+.title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.title b { font-size: 19px; }
+.type { color: var(--muted); }
+.spf { font-size: 15px; }
+.why { font-size: 13px; color: var(--warn); }
+.label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .cands { display: grid; gap: 6px; }
-.cand { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; text-align: left; width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); font: 14px var(--font-ui); cursor: pointer; }
-.cand:hover { border-color: var(--cand); }
+.cand { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: none; cursor: pointer; }
 .cand[aria-pressed="true"] { border-color: var(--path); box-shadow: inset 0 0 0 1px var(--path); }
-.cand .arrow { width: 22px; height: 22px; display: grid; place-items: center; color: var(--path); }
-.cand .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cand .meta { font: 12px var(--font-data); color: var(--muted); white-space: nowrap; }
+.cand .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cand .meta { font: 12px var(--mono); color: var(--muted); }
+.cand svg { color: var(--path); }
 .tools { display: flex; gap: 6px; flex-wrap: wrap; }
-.btn { font: 500 14px var(--font-ui); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+.btn:hover:not(:disabled) { background: var(--hover); }
 .btn:disabled { opacity: .45; cursor: default; }
-.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
-.btn:focus-visible, .chip:focus-visible, .cand:focus-visible, .row:focus-visible { outline: 2px solid var(--path); outline-offset: 1px; }
-.links { display: flex; gap: 14px; font-size: 14px; }
-.links a { color: var(--path); }
-.hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
-.empty { padding: 24px 16px; color: var(--muted); }
-.vx { width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 3px solid var(--path); box-sizing: border-box; margin: -6px 0 0 -6px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 650; }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.06); }
+.btn.big { width: 100%; padding: 11px; font-size: 15.5px; }
+.note { padding: 9px 11px; border-radius: 8px; background: var(--bg); font-size: 13.5px; }
+.note.ok { color: var(--ok); }
+.links { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13.5px; }
+.links a, .linkbtn { color: var(--path); }
+.linkbtn { background: none; border: 0; padding: 0; cursor: pointer; font-size: 13.5px; text-decoration: underline; }
+.coords { font: 12px var(--mono); color: var(--muted); }
+:focus-visible { outline: 2px solid var(--path); outline-offset: 1px; }
+
+.changes { border-top: 1px solid var(--line); padding: 12px 16px; display: flex; align-items: center; gap: 10px; background: var(--panel); }
+.changes span { flex: 1; font-weight: 600; }
+.chg { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.chg small { color: var(--muted); display: block; }
+ol.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+
+.vx { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid var(--path); box-sizing: border-box; margin: -7px 0 0 -7px; cursor: grab; }
 .vx.sel { background: var(--accent); border-color: var(--accent); }
 .vx.end { border-color: var(--accent); }
-.mid { width: 10px; height: 10px; border-radius: 50%; background: var(--path); opacity: .35; margin: -5px 0 0 -5px; }
+.mid { width: 12px; height: 12px; border-radius: 50%; background: var(--path); opacity: .35; margin: -6px 0 0 -6px; cursor: copy; }
 .mid:hover { opacity: .9; }
-.cam { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 4px; background: var(--accent); border: 2px solid var(--panel); box-sizing: border-box; box-shadow: 0 0 0 1px var(--accent); }
-.cam.redlight { border-radius: 50%; }
-.legend { position: absolute; z-index: 500; left: 10px; bottom: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+.cam { width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 5px; border: 3px solid #fff; box-sizing: border-box; box-shadow: 0 0 0 1px #0006; }
+.legend { position: absolute; z-index: 500; left: 10px; bottom: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid var(--path); }
+.legend i { display: inline-block; width: 18px; border-top: 4px solid var(--path); }
 .legend i.c { border-top: 2px dashed var(--cand); }
-.copied { color: var(--high); font-size: 12px; }
+.legend i.s { width: 10px; height: 10px; border: 0; border-radius: 3px; background: var(--accent); }
+.leaflet-container { font: inherit; }
 
 @media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: 52vh auto; height: auto; }
-  .mapwrap { order: -1; height: 52vh; }
+  .app { grid-template-columns: 1fr; grid-template-rows: 48vh 1fr; height: auto; min-height: 100%; }
+  .mapwrap { order: -1; height: 48vh; }
   .side { border-right: 0; }
-  .list { max-height: 40vh; }
-  .detail { max-height: none; }
+  .changes { position: sticky; bottom: 0; }
+  .legend { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
 </style>
 </head>
 <body>
-
 <div class="app">
   <aside class="side">
     <header>
       <h1>Camera path editor</h1>
-      <div class="progress"><div class="bar"><i id="bar"></i></div><span id="prog">0 of 0 checked</span></div>
-      <div class="filters" role="group" aria-label="Filter cameras">
-        <button class="chip" data-f="todo" aria-pressed="true">To check</button>
-        <button class="chip" data-f="all" aria-pressed="false">All</button>
-        <button class="chip" data-f="done" aria-pressed="false">Reviewed</button>
+      <p class="sub">Check new cameras, or suggest a fix to the road a camera covers.</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-mode="new">New cameras<span class="count" id="newCount" hidden></span></button>
+        <button class="tab" role="tab" data-mode="fix">Fix a camera</button>
       </div>
-      <input id="q" type="search" placeholder="Search by camera id or road" aria-label="Search cameras">
-      <div class="save" id="save">Loading…</div>
-      <div class="tools"><button class="btn primary" id="submit">Submit reviewed cameras</button></div>
     </header>
-    <div class="list" id="list" role="listbox" aria-label="Cameras"></div>
-    <section class="detail" id="detail"></section>
+    <div class="body" id="body"><div class="pad empty">Loading cameras…</div></div>
+    <footer class="changes" id="changes" hidden></footer>
   </aside>
   <div class="mapwrap">
-    <div id="map" aria-label="Map of the selected camera's approach"></div>
-    <div class="legend"><span><i></i>Approach path (drive this way)</span><span><i class="c"></i>Other road options</span></div>
+    <div id="map" aria-label="Map"></div>
+    <div class="legend"><span><i></i>Approach path: traffic drives this way</span><span><i class="s"></i>The camera</span><span><i class="c"></i>Another possible road</span></div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-// Cameras waiting for review plus every published camera, read straight from the repo so the page
-// always shows the latest data.
 const REPO = location.hostname.endsWith('.github.io')
   ? location.hostname.split('.')[0] + '/' + location.pathname.split('/')[1]
   : 'quekdylan/sg-traffic-cameras';
-const raw = f => fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + f + '?t=' + Date.now(), { cache: 'no-store' })
-  .then(r => r.ok ? r.json() : null).catch(() => null);
-Promise.all([raw('review/pending.json'), raw('data/cameras.json')]).then(([P, D]) => {
-const pending = (P && P.cameras) || [];
-const waiting = new Set(pending.map(c => c.id));
-// A published camera's only option is its current path, so editing it works the same way.
-const published = (D || []).filter(c => !waiting.has(c.id)).map(c => {
-  const a = c.path[c.path.length - 2], b = c.path[c.path.length - 1], k = Math.cos(1.35 * Math.PI / 180);
-  const m = (p, q) => Math.hypot((q[0] - p[0]) * 110574, (q[1] - p[1]) * 110574 * k);
-  const bearing = Math.round((Math.atan2((b[1] - a[1]) * k, b[0] - a[0]) * 180 / Math.PI + 360) % 360);
-  const len = Math.round(c.path.slice(1).reduce((s, p, i) => s + m(c.path[i], p), 0));
-  return { id: c.id, type: c.type, category: c.category, location: c.location, lat: c.lat, lon: c.lon, conf: 'high', def: 0,
-           cands: [{ road: c.location, bearing, dist: 0, len, pts: c.path }] };
-});
-const DATA = {
-  cameras: pending.concat(published).map(c => Object.assign(c, { id: String(c.id), type: String(c.type), cat: c.category,
-                                                                   loc: c.location, flags: c.why ? 'Why: ' + c.why : '' })),
-  roads: [].concat(...pending.map(c => c.roads || [])),
+const TYPES = {
+  1: ['Red light', '#ff3b30'], 2: ['Fixed speed', '#ff9f0a'], 3: ['Mobile speed', '#e0b800'],
+  4: ['Average speed', '#c46a00'], 5: ['Police speed laser', '#2fa8d8'], 6: ['Traffic violation (TVEC)', '#bf5af2'],
 };
-const CAMS = DATA.cameras;
-const ROADS = DATA.roads;
-const BY_ID = new Map(CAMS.map(c => [c.id, c]));
-const RANK = { low: 0, medium: 1, high: 2 };
-const MAJOR = new Set(['motorway', 'trunk', 'primary', 'secondary', 'motorway_link', 'trunk_link', 'primary_link']);
+const KEY = 'sg-traffic-cameras-changes';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------- geometry (local metres around Singapore)
-const LAT0 = 1.3521, MLAT = 110574, MLON = 111320 * Math.cos(LAT0 * Math.PI / 180);
-const xy = p => [(p[1] - 103.8198) * MLON, (p[0] - LAT0) * MLAT];
-const toLL = q => [+(q[1] / MLAT + LAT0).toFixed(6), +(q[0] / MLON + 103.8198).toFixed(6)];
+const LAT0 = 1.3521, LON0 = 103.8198, MLAT = 110574, MLON = 111320 * Math.cos(LAT0 * Math.PI / 180);
+const xy = p => [(p[1] - LON0) * MLON, (p[0] - LAT0) * MLAT];
+const toLL = q => [+(q[1] / MLAT + LAT0).toFixed(6), +(q[0] / MLON + LON0).toFixed(6)];
 const brg = (a, b) => { const A = xy(a), B = xy(b); return (Math.atan2(B[0] - A[0], B[1] - A[1]) * 180 / Math.PI + 360) % 360; };
 const dist = (a, b) => { const A = xy(a), B = xy(b); return Math.hypot(B[0] - A[0], B[1] - A[1]); };
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-const compass = d => COMPASS[Math.round(d / 45) % 8];
-// Roads arrive delta-encoded in 1e-5 degrees; decode and index them on a 0.01 degree grid.
-const CELL = 0.01, ROAD_GRID = new Map();
-ROADS.forEach((r, ri) => {
-  const f = r.p, pts = []; let la = 0, lo = 0;
-  let a = 90, b = -90, c = 180, d = -180;
-  for (let i = 0; i < f.length; i += 2) {
-    la += f[i]; lo += f[i + 1];
-    const p = [la / 1e5, lo / 1e5]; pts.push(p);
-    a = Math.min(a, p[0]); b = Math.max(b, p[0]); c = Math.min(c, p[1]); d = Math.max(d, p[1]);
-  }
-  r.p = pts; r.bb = [a, b, c, d];
-  r.rank = /^(motorway|trunk)$/.test(r.h) ? 0 : /^(primary|secondary)$|_link$/.test(r.h) ? 1 : 2;
-  for (let gx = Math.floor(a / CELL); gx <= Math.floor(b / CELL); gx++)
-    for (let gy = Math.floor(c / CELL); gy <= Math.floor(d / CELL); gy++) {
-      const k = gx + ',' + gy; if (!ROAD_GRID.has(k)) ROAD_GRID.set(k, []); ROAD_GRID.get(k).push(ri);
-    }
-});
+const pathLen = p => p.slice(1).reduce((s, q, i) => s + dist(p[i], q), 0);
+const compass = d => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(d / 45) % 8];
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const arrow = deg => '<svg width="20" height="20" viewBox="-10 -10 20 20" aria-hidden="true"><g transform="rotate(' + Math.round(deg) + ')"><path d="M0 -8 L5 4 L0 1 L-5 4 Z" fill="currentColor"/></g></svg>';
 
 // ---------- state
-const edits = new Map();            // id -> {cand, path, reviewed}
-let filter = 'todo', query = '', current = null, selVertex = null;
-const KEY = 'sg-traffic-cameras-edits';
-let drawing = null;                 // points being drawn for a brand-new path, or null
+let CAMS = [], BY_ID = new Map();
+let mode = 'new', view = 'list', current = null, query = '';
+let drawing = null, selVertex = null;
+const edits = new Map();   // id -> { cand, path, approved }
 
 const edit = id => edits.get(id) || {};
 function pathOf(c) {
   const e = edit(c.id);
   if (e.path && e.path.length >= 2) return e.path;
-  const i = (e.cand !== undefined && e.cand !== null) ? e.cand : c.def;
-  return (i !== null && i !== undefined && c.cands[i] && c.cands[i].pts.length >= 2) ? c.cands[i].pts : null;
+  if (!c.pending) return c.path;
+  const i = e.cand ?? c.def;
+  return i !== null && i !== undefined && c.cands[i] && c.cands[i].pts.length >= 2 ? c.cands[i].pts : null;
 }
-function chosenIdx(c) {
-  const e = edit(c.id);
-  if (e.path) return -1;
-  return (e.cand !== undefined && e.cand !== null) ? e.cand : c.def;
-}
+const chosen = c => edit(c.id).path ? -1 : (edit(c.id).cand ?? c.def);
+// A change is an approved new camera, or a published camera whose path was edited.
+const isChange = c => c.pending ? !!edit(c.id).approved && !!pathOf(c) : !!edit(c.id).path && !same(edit(c.id).path, c.path);
+const changes = () => CAMS.filter(isChange);
 function status(c) {
-  if (edit(c.id).reviewed) return 'done';
-  if (!pathOf(c)) return 'none';
-  return c.conf;
+  if (c.pending) return edit(c.id).approved ? ['approved', 'Approved'] : ['new', 'To check'];
+  return isChange(c) ? ['changed', 'Changed'] : ['published', 'Published'];
 }
-const needsCheck = c => c.conf !== 'high' || c.def === null;
-const STATUS_TEXT = { done: 'Reviewed', none: 'No path', low: 'Low', medium: 'Medium', high: 'Published' };
-const typeName = c => c.cat || (c.type === '1' ? 'Red light' : 'Type ' + c.type);
-
-// ---------- saving
-// Edits live in this browser until they're submitted.
 function save(id, patch) {
   const next = Object.assign({}, edit(id), patch);
   for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-  edits.set(id, next);
-  renderAll();
+  if (Object.keys(next).length) edits.set(id, next); else edits.delete(id);
   try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(edits))); } catch (e) {}
-}
-function setSave(t, warn) { const el = document.getElementById('save'); el.textContent = t; el.classList.toggle('warn', !!warn); }
-// ---------- list
-const listEl = document.getElementById('list');
-function visible() {
-  const q = query.trim().toLowerCase();
-  return CAMS.filter(c => {
-    const s = status(c);
-    if (filter === 'todo' && (s === 'done' || !needsCheck(c))) return false;
-    if (filter === 'done' && s !== 'done') return false;
-    if (!q) return true;
-    const road = c.cands[0] ? c.cands[0].road.toLowerCase() : '';
-    return c.id === q || road.includes(q) || c.loc.toLowerCase().includes(q);
-  }).sort((a, b) => (RANK[a.conf] - RANK[b.conf]) || (+a.id - +b.id));
-}
-function renderList() {
-  const rows = visible();
-  listEl.textContent = '';
-  if (!rows.length) {
-    const d = document.createElement('div'); d.className = 'empty';
-    d.textContent = filter === 'todo' ? 'Nothing left to check. Switch to All to look over the automatic ones.' : 'No cameras match.';
-    listEl.appendChild(d); return;
-  }
-  for (const c of rows) {
-    const r = document.createElement('div'); r.className = 'row'; r.tabIndex = 0; r.setAttribute('role', 'option');
-    r.setAttribute('aria-current', current && current.id === c.id ? 'true' : 'false');
-    const s = status(c);
-    const road = (pathOf(c) && c.cands[Math.max(0, chosenIdx(c))]) ? c.cands[Math.max(0, chosenIdx(c))].road : (c.cands[0] ? c.cands[0].road : 'No road nearby');
-    r.innerHTML = '<span class="id">#' + c.id + '</span><span class="rd"></span><span class="pill ' + s + '">' + STATUS_TEXT[s] + '</span>';
-    r.querySelector('.rd').textContent = road;
-    r.onclick = () => select(c.id);
-    r.onkeydown = e => { if (e.key === 'Enter') select(c.id); };
-    listEl.appendChild(r);
-  }
-}
-function renderProgress() {
-  const todo = CAMS.filter(needsCheck);
-  const done = todo.filter(c => edit(c.id).reviewed).length;
-  document.getElementById('prog').textContent = done + ' of ' + todo.length + ' checked';
-  document.getElementById('bar').style.width = (todo.length ? 100 * done / todo.length : 0) + '%';
+  render();
 }
 
-// ---------- detail panel
-const detailEl = document.getElementById('detail');
-function arrowSvg(deg) {
-  return '<svg width="20" height="20" viewBox="-10 -10 20 20" aria-hidden="true"><g transform="rotate(' + deg.toFixed(0) + ')"><path d="M0 -8 L5 4 L0 1 L-5 4 Z" fill="currentColor"/></g></svg>';
+// ---------- sidebar
+const bodyEl = document.getElementById('body');
+function render() {
+  const pend = CAMS.filter(c => c.pending);
+  const todo = pend.filter(c => !edit(c.id).approved).length;
+  const nc = document.getElementById('newCount');
+  nc.hidden = !todo; nc.textContent = todo;
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.mode === mode && view !== 'submit'));
+  if (view === 'camera' && current) renderCamera();
+  else if (view === 'submit') renderSubmit();
+  else if (mode === 'new') renderNewList(pend);
+  else renderFixList();
+  renderChanges();
+  drawCams();
+  drawSelected();
 }
-function renderDrawing() {
-  const c = current;
-  detailEl.innerHTML = '<div class="dhead"><b>Drawing a path for #' + c.id + '</b></div>' +
-    '<div class="hint">Click on the map along the road traffic drives on, in driving order. Start about 300 to 400 m before the camera and finish at the camera. You can zoom and pan while drawing.</div>' +
-    '<div class="flags">' + drawing.length + ' point' + (drawing.length === 1 ? '' : 's') + ' so far</div>' +
-    '<div class="tools"><button class="btn primary" id="drawDone"' + (drawing.length < 2 ? ' disabled' : '') + '>Use this path</button>' +
-    '<button class="btn" id="drawUndo"' + (drawing.length ? '' : ' disabled') + '>Undo last point</button>' +
-    '<button class="btn" id="drawCancel">Cancel</button></div>';
-  document.getElementById('drawDone').onclick = () => { const p = drawing; drawing = null; selVertex = null; save(c.id, { path: p }); drawSelected(true); };
-  document.getElementById('drawUndo').onclick = () => { drawing.pop(); drawSelected(false); renderDetail(); };
-  document.getElementById('drawCancel').onclick = () => { drawing = null; drawSelected(false); renderDetail(); };
+
+function row(c) {
+  const [cls, txt] = status(c);
+  return '<button class="row" data-id="' + c.id + '"><span class="id">#' + c.id + '</span>' +
+    '<span class="loc"><span class="dot" style="background:' + TYPES[c.type][1] + '"></span> ' + esc(c.location) + '</span>' +
+    '<span class="chip ' + cls + '">' + txt + '</span></button>';
 }
-function renderDetail() {
-  if (!current) { detailEl.innerHTML = '<div class="hint">Pick a camera from the list or the map.</div>'; return; }
-  if (drawing) { renderDrawing(); return; }
-  const c = current, e = edit(c.id), path = pathOf(c), idx = chosenIdx(c);
-  const end = path ? path[path.length - 1] : [c.lat, c.lon];
-  const head = path ? brg(path[path.length - 2], path[path.length - 1]) : 0;
-  const len = path ? path.slice(1).reduce((s, p, i) => s + dist(path[i], p), 0) : 0;
-  let h = '<div class="dhead"><b>Camera #' + c.id + '</b><span class="t">' + typeName(c) + '</span>' +
-    '<span class="pill ' + status(c) + '">' + STATUS_TEXT[status(c)] + '</span></div>';
-  if (c.loc) h += '<div class="spf"><span class="label">SPF listing</span><span class="loctext"></span></div>';
-  if (c.flags) h += '<div class="flags">' + c.flags.replace(/[<>&]/g, '').split(';').join(' · ') + '</div>';
-  h += '<div class="label">Which way is traffic driving past it?</div><div class="cands">';
-  let extraShown = false;
-  c.cands.forEach((k, i) => {
-    if (k.extra && !extraShown) { extraShown = true; h += '<div class="label">Further from the camera</div>'; }
-    h += '<button class="cand" data-i="' + i + '" aria-pressed="' + (idx === i) + '"><span class="arrow">' + arrowSvg(k.bearing) + '</span>' +
-      '<span class="nm"></span><span class="meta">' + compass(k.bearing) + ' ' + k.bearing + '° · ' + k.dist + ' m</span></button>';
-  });
-  if (!c.cands.length) h += '<div class="hint">No road within 60 m. The coordinates may be off; draw the path yourself.</div>';
-  if (idx === -1) h += '<div class="hint">Using your hand-edited path (' + Math.round(len) + ' m).</div>';
-  h += '</div>';
-  h += '<div class="tools">' +
+function bindRows(el) { el.querySelectorAll('.row').forEach(r => r.onclick = () => select(r.dataset.id)); }
+
+function renderNewList(pend) {
+  if (!pend.length) {
+    bodyEl.innerHTML = '<div class="pad"><p class="empty">No new cameras are waiting to be checked.</p>' +
+      '<p class="hint">To correct an existing camera, use <b>Fix a camera</b>.</p></div>';
+    return;
+  }
+  bodyEl.innerHTML = '<div class="pad"><p class="hint">These cameras were added or moved on the SPF list. Check that each path follows the road traffic takes to reach the camera, then approve it.</p></div>' +
+    pend.map(row).join('');
+  bindRows(bodyEl);
+}
+
+function renderFixList() {
+  if (!bodyEl.querySelector('#q')) {
+    bodyEl.innerHTML = '<div class="pad"><input id="q" class="search" type="search" placeholder="Camera number or road name" aria-label="Find a camera">' +
+      '<p class="hint">Or tap a camera on the map.</p></div><div id="results"></div>';
+    const q = bodyEl.querySelector('#q');
+    q.value = query;
+    q.oninput = () => { query = q.value; renderResults(); };
+  }
+  renderResults();
+}
+function renderResults() {
+  const el = document.getElementById('results'); if (!el) return;
+  const q = query.trim().toLowerCase().replace(/^#/, '');
+  const hits = !q ? CAMS.filter(isChange) : CAMS.filter(c => c.id === q || c.location.toLowerCase().includes(q));
+  el.innerHTML = hits.slice(0, 60).map(row).join('') +
+    (q && !hits.length ? '<div class="pad empty">No camera matches.</div>' : '') +
+    (hits.length > 60 ? '<div class="pad hint">Showing 60 of ' + hits.length + '. Type more to narrow it down.</div>' : '');
+  bindRows(el);
+}
+
+function renderCamera() {
+  const c = current, e = edit(c.id), path = pathOf(c), idx = chosen(c);
+  const [cls, txt] = status(c);
+  let h = '<div class="pad">' +
+    '<button class="back" id="back">← ' + (mode === 'new' ? 'New cameras' : 'Back to search') + '</button>' +
+    '<div class="title"><b>#' + c.id + '</b><span class="type">' + esc(TYPES[c.type][0]) + '</span><span class="chip ' + cls + '">' + txt + '</span></div>' +
+    '<div class="spf">' + esc(c.location) + '</div>';
+  if (c.why) h += '<div class="why">' + (c.why === 'new' ? 'New on the SPF list' : 'Moved on the SPF list (' + esc(c.why.replace('moved from', 'was at')) + ')') + '</div>';
+
+  if (drawing) {
+    h += '<div class="note">Tap the map along the road, <b>in the direction traffic drives</b>. Start about 300 to 400 m before the camera and finish at the camera. You can zoom and pan while drawing.</div>' +
+      '<div class="hint">' + drawing.length + ' point' + (drawing.length === 1 ? '' : 's') + ' so far</div>' +
+      '<div class="tools"><button class="btn primary" id="drawDone"' + (drawing.length < 2 ? ' disabled' : '') + '>Use this path</button>' +
+      '<button class="btn" id="drawUndo"' + (drawing.length ? '' : ' disabled') + '>Undo point</button>' +
+      '<button class="btn" id="drawCancel">Cancel</button></div></div>';
+    bodyEl.innerHTML = h;
+    on('back', () => { drawing = null; back(); });
+    on('drawDone', () => { const p = drawing; drawing = null; selVertex = null; save(c.id, { path: p, approved: undefined }); fit(); });
+    on('drawUndo', () => { drawing.pop(); render(); });
+    on('drawCancel', () => { drawing = null; render(); });
+    return;
+  }
+
+  if (c.pending && c.cands.filter(k => k.pts.length >= 2).length > 1) {
+    h += '<div class="label">Which road and direction?</div><div class="cands">';
+    let extra = false;
+    c.cands.forEach((k, i) => {
+      if (k.pts.length < 2) return;
+      if (k.extra && !extra) { extra = true; h += '<div class="hint">Further from the camera</div>'; }
+      h += '<button class="cand" data-i="' + i + '" aria-pressed="' + (idx === i) + '">' + arrow(k.bearing) +
+        '<span class="nm">' + esc(k.road) + '</span><span class="meta">' + compass(k.bearing) + ' · ' + Math.round(k.dist) + ' m away</span></button>';
+    });
+    h += '</div>';
+  }
+  h += '<div class="label">Path</div>' +
+    '<div class="hint">' + (path ? 'Traffic drives along the blue line to the camera (orange square), about ' + Math.round(pathLen(path)) +
+      ' m. Drag the points to move them, tap a faint dot to add one, or tap a point to select it.' : 'No path yet. Pick a road above or draw one.') + '</div>' +
+    '<div class="tools">' +
+    '<button class="btn" id="draw">Redraw</button>' +
+    '<button class="btn" id="extend"' + (path ? '' : ' disabled') + '>Lengthen 50 m</button>' +
     '<button class="btn" id="delpt"' + (selVertex === null || !path || path.length <= 2 ? ' disabled' : '') + '>Delete point</button>' +
-    '<button class="btn" id="extend"' + (!path ? ' disabled' : '') + '>Extend 50 m</button>' +
-    '<button class="btn" id="reset"' + (e.path || e.cand !== undefined ? '' : ' disabled') + '>Reset to suggested</button>' +
-    '<button class="btn" id="draw">Draw new path</button>' +
+    '<button class="btn" id="reset"' + (e.path || e.cand !== undefined ? '' : ' disabled') + '>Undo changes</button>' +
     '</div>';
-  h += '<div class="tools">' +
-    '<button class="btn primary" id="okNext"' + (path ? '' : ' disabled') + '>' + (e.reviewed ? 'Next' : 'Looks right, next') + '</button>' +
-    '<button class="btn" id="toggleRev">' + (e.reviewed ? 'Mark not reviewed' : 'Mark reviewed') + '</button>' +
-    '</div>';
-  const sv = 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + end[0] + ',' + end[1] + '&heading=' + Math.round(head);
-  const sat = 'https://www.google.com/maps/@?api=1&map_action=map&center=' + c.lat + ',' + c.lon + '&zoom=19&basemap=satellite';
-  const sel = (path && selVertex !== null && path[selVertex]) ? path[selVertex] : null;
-  h += '<div class="tools"><button class="btn" id="copyCam">Copy camera coordinates</button>' +
-    (sel ? '<button class="btn" id="copyPt">Copy point coordinates</button>' : '') +
-    (path ? '<button class="btn" id="copyPath">Copy path</button>' : '') +
-    '<span class="copied" id="copiedC"></span></div>';
-  h += '<div class="flags">Camera ' + c.lat.toFixed(6) + ', ' + c.lon.toFixed(6) + (sel ? ' · point ' + sel[0].toFixed(6) + ', ' + sel[1].toFixed(6) : '') + '</div>';
-  h += '<div class="links"><a href="' + sv + '" target="_blank" rel="noopener">Street View facing the camera</a><a href="' + sat + '" target="_blank" rel="noopener">Satellite</a></div>';
-  h += '<div class="hint">None of the options right? Use Draw new path and click along the correct road. To tweak a path, drag the blue points, click a faint midpoint to add one, or click a point then Delete point. Traffic drives along the path toward the orange marker.</div>';
-  detailEl.innerHTML = h;
-  const lt = detailEl.querySelector('.loctext'); if (lt) lt.textContent = c.loc;
-  detailEl.querySelectorAll('.cand').forEach(b => {
-    const k = c.cands[+b.dataset.i];
-    b.querySelector('.nm').textContent = k.road + (k.pts.length < 2 ? ' (no path)' : k.len < 200 ? ' (short: ' + k.len + ' m)' : '');
-    if (k.pts.length < 2) { b.disabled = true; return; }
-    b.onclick = () => { selVertex = null; save(c.id, { cand: +b.dataset.i, path: undefined }); drawSelected(true); };
+  if (c.pending) {
+    h += e.approved
+      ? '<div class="note ok">Approved. It\'s in your changes below.</div><div class="tools"><button class="btn" id="unapprove">Undo approval</button>' +
+        '<button class="btn primary" id="nextNew">Next camera</button></div>'
+      : '<button class="btn primary big" id="approve"' + (path ? '' : ' disabled') + '>Path looks right: approve</button>';
+  } else if (isChange(c)) {
+    h += '<div class="note ok">Changed. It\'s in your changes below. Use Undo changes to drop it.</div>';
+  } else {
+    h += '<div class="hint">Edit the path on the map. Your fix is added to your changes automatically.</div>';
+  }
+  const end = path ? path[path.length - 1] : [c.lat, c.lon];
+  const head = path ? Math.round(brg(path[path.length - 2], path[path.length - 1])) : 0;
+  h += '<div class="label">Check it</div><div class="links">' +
+    '<a target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + end[0] + ',' + end[1] + '&heading=' + head + '">Street View facing the camera</a>' +
+    '<a target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=map&center=' + c.lat + ',' + c.lon + '&zoom=19&basemap=satellite">Satellite</a>' +
+    '<button class="linkbtn" id="copy">Copy coordinates</button></div>' +
+    '<div class="coords">' + c.lat.toFixed(6) + ', ' + c.lon.toFixed(6) + '</div></div>';
+  bodyEl.innerHTML = h;
+
+  bodyEl.querySelectorAll('.cand').forEach(b => b.onclick = () => {
+    selVertex = null; save(c.id, { cand: +b.dataset.i, path: undefined, approved: undefined }); fit();
   });
-  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  on('delpt', deleteVertex);
+  on('back', back);
+  on('draw', () => { drawing = []; selVertex = null; render(); });
   on('extend', () => {
-    const p = pathOf(c).slice(); const a = xy(p[0]), b = xy(p[1]); const L = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+    const p = pathOf(c).slice(), a = xy(p[0]), b = xy(p[1]), L = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
     p.unshift(toLL([a[0] + (a[0] - b[0]) / L * 50, a[1] + (a[1] - b[1]) / L * 50]));
-    save(c.id, { path: p }); drawSelected(false);
+    save(c.id, { path: p, approved: undefined });
   });
-  on('reset', () => { selVertex = null; save(c.id, { cand: undefined, path: undefined }); drawSelected(true); });
-  on('draw', () => { drawing = []; selVertex = null; drawSelected(false); renderDetail(); });
-  on('okNext', () => { if (!e.reviewed) save(c.id, { reviewed: true }); next(1); });
-  on('toggleRev', () => save(c.id, { reviewed: !e.reviewed }));
-  const copy = (txt, msg) => {
-    const done = m => { const el = document.getElementById('copiedC'); if (el) el.textContent = m; };
-    try { navigator.clipboard.writeText(txt).then(() => done(msg), () => done('Copy blocked here; select the text above')); }
-    catch (err) { done('Copy blocked here; select the text above'); }
-  };
-  on('copyCam', () => copy(c.lat.toFixed(6) + ', ' + c.lon.toFixed(6), 'Copied camera coordinates'));
-  on('copyPt', () => copy(sel[0].toFixed(6) + ', ' + sel[1].toFixed(6), 'Copied point ' + (selVertex + 1)));
-  on('copyPath', () => copy(path.map(p => p[0].toFixed(6) + ', ' + p[1].toFixed(6)).join('\n'), 'Copied ' + path.length + ' points'));
+  on('delpt', deleteVertex);
+  on('reset', () => { selVertex = null; save(c.id, { cand: undefined, path: undefined, approved: undefined }); fit(); });
+  on('approve', () => save(c.id, { approved: true }));
+  on('unapprove', () => save(c.id, { approved: undefined }));
+  on('nextNew', () => {
+    const nxt = CAMS.find(k => k.pending && !edit(k.id).approved);
+    if (nxt) select(nxt.id); else back();
+  });
+  on('copy', () => {
+    const t = c.lat.toFixed(6) + ', ' + c.lon.toFixed(6);
+    try { navigator.clipboard.writeText(t).then(() => { document.getElementById('copy').textContent = 'Copied'; }); } catch (err) {}
+  });
 }
-function next(step) {
-  const rows = visible();
-  if (!rows.length) { renderAll(); return; }
-  let i = current ? rows.findIndex(r => r.id === current.id) : -1;
-  if (i === -1) i = step > 0 ? 0 : rows.length - 1;   // current dropped out of the filter: take whatever is now at its place
-  else i = (i + step + rows.length) % rows.length;
-  select(rows[i].id);
+function on(id, fn) { const el = document.getElementById(id); if (el) el.onclick = fn; }
+
+function renderChanges() {
+  const el = document.getElementById('changes'), n = changes().length;
+  el.hidden = !n || view === 'submit';
+  if (el.hidden) return;
+  el.innerHTML = '<span>' + n + ' change' + (n === 1 ? '' : 's') + ' ready</span><button class="btn primary" id="review">Review and submit</button>';
+  on('review', () => { view = 'submit'; drawing = null; render(); });
 }
+
+function renderSubmit() {
+  const list = changes();
+  let h = '<div class="pad"><button class="back" id="back">← Back</button><div class="title"><b>Your changes</b></div>';
+  if (!list.length) {
+    h += '<p class="empty">No changes yet.</p></div>';
+  } else {
+    h += '<div>' + list.map(c => '<div class="chg"><div>#' + c.id + ' ' + esc(TYPES[c.type][0]) + '<small>' + esc(c.location) + '</small><small>' +
+      (c.pending ? 'New camera, approved' : 'Path changed') + '</small></div><button class="btn" data-drop="' + c.id + '">Remove</button></div>').join('') + '</div>' +
+      '<ol class="steps"><li>Press <b>Submit on GitHub</b>. GitHub opens with your changes filled in (sign in if asked).</li>' +
+      '<li>If it\'s your repo, press <b>Commit changes</b>. The data updates within a couple of minutes.</li>' +
+      '<li>Everyone else: press <b>Propose changes</b>, then <b>Create pull request</b>. It goes live once the owner accepts it.</li></ol>' +
+      '<button class="btn primary big" id="submit">Submit on GitHub</button>' +
+      '<div class="hint" id="submitted"></div></div>';
+  }
+  bodyEl.innerHTML = h;
+  on('back', () => { view = current ? 'camera' : 'list'; render(); });
+  bodyEl.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
+    const c = BY_ID.get(b.dataset.drop);
+    save(c.id, c.pending ? { approved: undefined } : { path: undefined, cand: undefined });
+  });
+  on('submit', () => {
+    const out = {};
+    for (const c of list) out[c.id] = { path: pathOf(c) };
+    const name = new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+    window.open('https://github.com/' + REPO + '/new/main/review/submitted?filename=' + encodeURIComponent(name) +
+      '&value=' + encodeURIComponent(JSON.stringify(out)), '_blank', 'noopener');
+    document.getElementById('submitted').textContent =
+      'GitHub opened in a new tab. Your changes stay listed here until they\'re live, then clear themselves.';
+  });
+}
+
+function select(id) {
+  current = BY_ID.get(String(id)); if (!current) return;
+  mode = current.pending ? 'new' : 'fix';
+  view = 'camera'; drawing = null; selVertex = null;
+  render(); fit();
+  bodyEl.scrollTop = 0;
+}
+function back() { view = 'list'; current = null; selVertex = null; render(); }
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  mode = t.dataset.mode; view = 'list'; current = null; drawing = null; selVertex = null; render();
+});
 
 // ---------- map
-const map = L.map('map', { preferCanvas: true, zoomControl: true, attributionControl: true, maxZoom: 21, minZoom: 11 })
-  .setView([LAT0, 103.8198], 12);
+const map = L.map('map', { zoomControl: true, maxZoom: 21, minZoom: 10 }).setView([LAT0, LON0], 12);
 map.attributionControl.setPrefix(false);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, opacity: 0.7,
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21,
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
-const roadLayer = L.layerGroup().addTo(map);
 const camLayer = L.layerGroup().addTo(map);
 const selLayer = L.layerGroup().addTo(map);
 const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const divIcon = html => L.divIcon({ className: '', html, iconSize: [0, 0] });
 
 function chevrons(pts, every, size) {
   // Small V marks along a polyline pointing in its direction.
@@ -380,10 +389,9 @@ function chevrons(pts, every, size) {
     const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
     while (acc < L) {
       const cx = a[0] + ux * acc, cy = a[1] + uy * acc;
-      const tip = [cx + ux * size * .6, cy + uy * size * .6];
-      const l = [cx - ux * size * .4 - uy * size * .5, cy - uy * size * .4 + ux * size * .5];
-      const r = [cx - ux * size * .4 + uy * size * .5, cy - uy * size * .4 - ux * size * .5];
-      out.push([toLL(l), toLL(tip), toLL(r)]);
+      out.push([toLL([cx - ux * size * .4 - uy * size * .5, cy - uy * size * .4 + ux * size * .5]),
+                toLL([cx + ux * size * .6, cy + uy * size * .6]),
+                toLL([cx - ux * size * .4 + uy * size * .5, cy - uy * size * .4 - ux * size * .5])]);
       acc += every;
     }
     acc -= L;
@@ -391,160 +399,109 @@ function chevrons(pts, every, size) {
   return out;
 }
 
-function drawRoads() {
-  roadLayer.clearLayers();
-  const z = map.getZoom(), vb = map.getBounds().pad(0.15);
-  const maxRank = z < 13 ? 0 : z < 15 ? 1 : 2;
-  const la0 = vb.getSouth(), la1 = vb.getNorth(), lo0 = vb.getWest(), lo1 = vb.getEast();
-  const major = tok('--road-major'), minor = tok('--road-minor');
-  const seen = new Set();
-  const scale = z >= 16 ? 1 : z >= 14 ? .7 : .5;
-  for (let gx = Math.floor(la0 / CELL); gx <= Math.floor(la1 / CELL); gx++)
-  for (let gy = Math.floor(lo0 / CELL); gy <= Math.floor(lo1 / CELL); gy++)
-  for (const ri of ROAD_GRID.get(gx + ',' + gy) || []) {
-    if (seen.has(ri)) continue; seen.add(ri);
-    const r = ROADS[ri];
-    if (r.rank > maxRank || r.bb[1] < la0 || r.bb[0] > la1 || r.bb[3] < lo0 || r.bb[2] > lo1) continue;
-    const isMajor = MAJOR.has(r.h);
-    const w = (/motorway|trunk/.test(r.h) && !/link/.test(r.h) ? 7 : isMajor ? 5 : 3) * scale;
-    const line = L.polyline(r.p, { color: isMajor ? major : minor, weight: w, opacity: 1, interactive: z >= 15 });
-    if (z >= 15) line.bindTooltip((r.n || r.h.replace('_', ' ')) + (r.o ? ' (one-way)' : ''), { sticky: true });
-    roadLayer.addLayer(line);
-    if (r.o && z >= 16) {
-      const pts = r.o === -1 ? r.p.slice().reverse() : r.p;
-      L.polyline(chevrons(pts, 45, 4), { color: tok('--road-label'), weight: 1.5, interactive: false }).addTo(roadLayer);
-    }
-  }
-}
-
 function drawCams() {
   camLayer.clearLayers();
   for (const c of CAMS) {
-    const s = status(c);
-    const col = s === 'done' ? tok('--done') : s === 'high' ? tok('--high') : s === 'medium' ? tok('--medium') : tok('--low');
-    const m = L.circleMarker([c.lat, c.lon], { radius: 5, color: tok('--panel'), weight: 1.5, fillColor: col, fillOpacity: 1 });
-    m.bindTooltip('#' + c.id + ' · ' + typeName(c));
+    if (current && view === 'camera' && c.id === current.id) continue;
+    const m = L.circleMarker([c.lat, c.lon], { radius: c.pending ? 7 : 5, color: c.pending ? tok('--accent') : '#ffffff',
+      weight: c.pending ? 3 : 1.5, fillColor: TYPES[c.type][1], fillOpacity: 1 });
+    m.bindTooltip('#' + c.id + ' ' + c.location);
     m.on('click', () => { if (!drawing) select(c.id); });
     camLayer.addLayer(m);
   }
 }
 
-function drawSelected(fit) {
+function drawSelected() {
   selLayer.clearLayers();
-  if (!current) return;
   map.getContainer().style.cursor = drawing ? 'crosshair' : '';
+  const c = current; if (!c || view !== 'camera') return;
+  const pathCol = tok('--path');
+  const camMarker = () => selLayer.addLayer(L.marker([c.lat, c.lon], { interactive: false, zIndexOffset: 1000,
+    icon: divIcon('<div class="cam" style="background:' + tok('--accent') + '"></div>') }));
   if (drawing) {
-    const c = current;
-    if (drawing.length) {
-      selLayer.addLayer(L.polyline(drawing, { color: tok('--path'), weight: 6, opacity: .9, interactive: false }));
-      if (drawing.length > 1) selLayer.addLayer(L.polyline(chevrons(drawing, 35, 7), { color: tok('--panel'), weight: 2.5, interactive: false }));
-      drawing.forEach((p, i) => selLayer.addLayer(L.marker(p, { interactive: false, icon: L.divIcon({ className: '', html: '<div class="vx' + (i === drawing.length - 1 ? ' end' : '') + '"></div>', iconSize: [0, 0] }) })));
+    if (drawing.length > 1) {
+      selLayer.addLayer(L.polyline(drawing, { color: pathCol, weight: 6, opacity: .9, interactive: false }));
+      selLayer.addLayer(L.polyline(chevrons(drawing, 35, 7), { color: '#fff', weight: 2.5, interactive: false }));
     }
-    selLayer.addLayer(L.marker([c.lat, c.lon], { interactive: false, zIndexOffset: 1000,
-      icon: L.divIcon({ className: '', html: '<div class="cam' + (c.type === '1' ? ' redlight' : '') + '"></div>', iconSize: [0, 0] }) }));
+    drawing.forEach((p, i) => selLayer.addLayer(L.marker(p, { interactive: false,
+      icon: divIcon('<div class="vx' + (i === drawing.length - 1 ? ' end' : '') + '"></div>') })));
+    camMarker();
     return;
   }
-  const c = current, path = pathOf(c), idx = chosenIdx(c);
-  const pathCol = tok('--path');
-  c.cands.forEach((k, i) => {
-    if (i === idx) return;
-    const l = L.polyline(k.pts, { color: tok('--cand'), weight: 3, dashArray: '6 6', opacity: .9 });
-    l.bindTooltip(k.road + ' · ' + compass(k.bearing) + ' ' + k.bearing + '°', { sticky: true });
-    l.on('click', () => { if (drawing) return; selVertex = null; save(c.id, { cand: i, path: undefined }); drawSelected(false); });
+  const path = pathOf(c), idx = chosen(c);
+  if (c.pending) c.cands.forEach((k, i) => {
+    if (i === idx || k.pts.length < 2) return;
+    const l = L.polyline(k.pts, { color: tok('--cand'), weight: 4, dashArray: '6 7', opacity: .9 });
+    l.bindTooltip('Use ' + k.road + ' (' + compass(k.bearing) + ')', { sticky: true });
+    l.on('click', () => { selVertex = null; save(c.id, { cand: i, path: undefined, approved: undefined }); });
     selLayer.addLayer(l);
   });
   if (path) {
     selLayer.addLayer(L.polyline(path, { color: pathCol, weight: 6, opacity: .9, interactive: false }));
-    selLayer.addLayer(L.polyline(chevrons(path, 35, 7), { color: tok('--panel'), weight: 2.5, interactive: false }));
-    // midpoints: click to insert
+    selLayer.addLayer(L.polyline(chevrons(path, 35, 7), { color: '#fff', weight: 2.5, interactive: false }));
     for (let i = 1; i < path.length; i++) {
       const m = [(path[i - 1][0] + path[i][0]) / 2, (path[i - 1][1] + path[i][1]) / 2];
-      const mk = L.marker(m, { icon: L.divIcon({ className: '', html: '<div class="mid" title="Add a point here"></div>', iconSize: [0, 0] }) });
-      mk.on('click', () => { const p = path.slice(); p.splice(i, 0, [+m[0].toFixed(6), +m[1].toFixed(6)]); selVertex = i; save(c.id, { path: p }); drawSelected(false); });
+      const mk = L.marker(m, { icon: divIcon('<div class="mid" title="Add a point here"></div>') });
+      mk.on('click', () => { const p = path.slice(); p.splice(i, 0, [+m[0].toFixed(6), +m[1].toFixed(6)]); selVertex = i; save(c.id, { path: p, approved: undefined }); });
       selLayer.addLayer(mk);
     }
     path.forEach((p, i) => {
-      const cls = 'vx' + (i === selVertex ? ' sel' : '') + (i === path.length - 1 ? ' end' : '');
-      const mk = L.marker(p, { draggable: true, keyboard: false, icon: L.divIcon({ className: '', html: '<div class="' + cls + '"></div>', iconSize: [0, 0] }) });
-      mk.on('click', () => { selVertex = i; drawSelected(false); renderDetail(); });
+      const mk = L.marker(p, { draggable: true, keyboard: false,
+        icon: divIcon('<div class="vx' + (i === selVertex ? ' sel' : '') + (i === path.length - 1 ? ' end' : '') + '"></div>') });
+      mk.on('click', () => { selVertex = i; render(); });
       mk.on('dragend', ev => {
-        const ll = ev.target.getLatLng(); const pp = path.slice(); pp[i] = [+ll.lat.toFixed(6), +ll.lng.toFixed(6)];
-        selVertex = i; save(c.id, { path: pp }); drawSelected(false);
+        const ll = ev.target.getLatLng(), pp = path.slice(); pp[i] = [+ll.lat.toFixed(6), +ll.lng.toFixed(6)];
+        selVertex = i; save(c.id, { path: pp, approved: undefined });
       });
       selLayer.addLayer(mk);
     });
   }
-  const camIcon = L.divIcon({ className: '', html: '<div class="cam' + (c.type === '1' ? ' redlight' : '') + '" title="Camera #' + c.id + '"></div>', iconSize: [0, 0] });
-  selLayer.addLayer(L.marker([c.lat, c.lon], { icon: camIcon, interactive: false, zIndexOffset: 1000 }));
-  if (fit) {
-    const b = L.latLngBounds([[c.lat, c.lon]]);
-    if (path) path.forEach(p => b.extend(p));
-    map.fitBounds(b.pad(0.25), { maxZoom: 18 });
-  }
+  camMarker();
 }
-
+function fit() {
+  const c = current; if (!c) return;
+  const b = L.latLngBounds([[c.lat, c.lon]]);
+  (pathOf(c) || []).forEach(p => b.extend(p));
+  map.fitBounds(b.pad(0.3), { maxZoom: 18 });
+}
 function deleteVertex() {
   if (!current || selVertex === null) return;
   const p = pathOf(current).slice(); if (p.length <= 2) return;
   p.splice(selVertex, 1); selVertex = null;
-  save(current.id, { path: p }); drawSelected(false);
+  save(current.id, { path: p, approved: undefined });
 }
-
-function select(id) {
-  current = BY_ID.get(id); selVertex = null; drawing = null;
-  drawSelected(true);
-  drawRoads();
-  renderAll();
-  const row = listEl.querySelector('.row[aria-current="true"]'); if (row) row.scrollIntoView({ block: 'nearest' });
-}
-
-function renderAll() { renderList(); renderProgress(); renderDetail(); drawCams(); }
-
-// ---------- controls
-document.querySelectorAll('.chip').forEach(b => b.onclick = () => {
-  filter = b.dataset.f;
-  document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b));
-  renderList();
-});
-document.getElementById('q').addEventListener('input', e => { query = e.target.value; renderList(); });
-document.addEventListener('keydown', e => {
-  if (e.target.matches('input, textarea')) return;
-  if (e.key === 'n' || e.key === 'j') next(1);
-  else if (e.key === 'p' || e.key === 'k') next(-1);
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && selVertex !== null) { e.preventDefault(); deleteVertex(); }
-});
-const recolor = () => { drawRoads(); if (current) drawSelected(false); drawCams(); };
-map.on('moveend', drawRoads);
 map.on('click', ev => {
   if (!drawing) return;
   drawing.push([+ev.latlng.lat.toFixed(6), +ev.latlng.lng.toFixed(6)]);
-  drawSelected(false); renderDetail();
+  render();
 });
-try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor); } catch (e) {}
-new MutationObserver(recolor).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selVertex !== null) { e.preventDefault(); deleteVertex(); }
+});
 
-// ---------- boot
-renderAll();
-const first = visible()[0]; if (first) select(first.id);
-
-try {
-  const s = JSON.parse(localStorage.getItem(KEY) || '{}');
-  for (const k in s) if (BY_ID.has(k)) edits.set(k, s[k]);
-} catch (e) {}
-setSave(CAMS.length ? 'Edits are saved in this browser. Press Submit when you are done.' : 'Nothing is waiting for review.');
-renderAll(); if (current) drawSelected(false);
-
-// Submit opens GitHub's "new file" page with the reviewed paths filled in; committing it publishes them.
-document.getElementById('submit').onclick = () => {
-  const out = {};
-  for (const c of CAMS) { const p = pathOf(c); if (edit(c.id).reviewed && p) out[c.id] = { path: p }; }
-  const n = Object.keys(out).length;
-  if (!n) { setSave('Mark at least one camera as reviewed first.', true); return; }
-  const name = new Date().toISOString().replace(/[:.]/g, '-') + '.json';
-  window.open('https://github.com/' + REPO + '/new/main/review/submitted?filename=' + encodeURIComponent(name) +
-              '&value=' + encodeURIComponent(JSON.stringify(out)), '_blank', 'noopener');
-  setSave('Opened GitHub with ' + n + ' camera(s). Press "Commit changes" there to publish them.');
-};
+// ---------- load: cameras waiting for review plus every published camera, straight from the repo
+const raw = f => fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + f + '?t=' + Date.now(), { cache: 'no-store' })
+  .then(r => r.ok ? r.json() : null).catch(() => null);
+Promise.all([raw('review/pending.json'), raw('data/cameras.json')]).then(([P, D]) => {
+  if (!D) { bodyEl.innerHTML = '<div class="pad empty">Could not load the camera data. Check your connection and reload.</div>'; return; }
+  const pending = ((P && P.cameras) || []).map(c => Object.assign(c, { pending: true }));
+  const waiting = new Set(pending.map(c => c.id));
+  CAMS = pending.concat(D.filter(c => !waiting.has(c.id))).map(c => Object.assign(c, { id: String(c.id), type: +c.type }));
+  BY_ID = new Map(CAMS.map(c => [c.id, c]));
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY) || '{}');
+    for (const k in s) if (BY_ID.has(k)) edits.set(k, s[k]);
+  } catch (e) {}
+  // Fixes that are now live drop out of the list on their own.
+  for (const [id, e] of [...edits]) {
+    const c = BY_ID.get(id);
+    if (!c.pending && (!e.path || same(e.path, c.path))) edits.delete(id);
+  }
+  try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(edits))); } catch (e) {}
+  const want = new URLSearchParams(location.search).get('id');
+  mode = pending.length ? 'new' : 'fix';
+  if (want && BY_ID.has(want)) select(want); else render();
 });
 </script>
 </body>

@@ -59,7 +59,7 @@ fetch('../data/cameras.json', { cache: 'no-store' })
     for (const c of cams) {
       const [name, color] = TYPES[c.type] || ['Camera', '#888888'];
       const popup = '<b>#' + c.id + ' ' + esc(name) + '</b><br>' + esc(c.location) + '<br>' +
-        c.lat.toFixed(6) + ', ' + c.lon.toFixed(6);
+        c.lat.toFixed(6) + ', ' + c.lon.toFixed(6) + '<br><a href="../editor/?id=' + c.id + '">Suggest a fix</a>';
       L.polyline(c.path, { color, weight: 3, opacity: 0.6 }).bindPopup(popup).addTo(groups[c.type]);
       L.circleMarker([c.lat, c.lon], { radius: 6, color: '#ffffff', weight: 1.5, fillColor: color, fillOpacity: 1 })
         .bindPopup(popup).bindTooltip('#' + c.id + ' ' + name).addTo(groups[c.type]);
