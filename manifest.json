@@ -1,0 +1,21 @@
+{
+  "version": 20261011,
+  "updated": "2026-10-11",
+  "spf_checked": "2026-10-11",
+  "cameras": 350,
+  "path_points": 1267,
+  "files": {
+    "data/cameras.csv": {
+      "bytes": 60330,
+      "sha256": "7113e7445017baec962d83453e00b35757e0601817ee9b9f2eb40f762980c665"
+    },
+    "data/cameras.json": {
+      "bytes": 80113,
+      "sha256": "5bf8d9c459aa9c7c5e9600f849ee7b210cd2841518521dfa9c74e96cad151cad"
+    },
+    "data/camera_data.h": {
+      "bytes": 48321,
+      "sha256": "95d8f37e33a0e3911933eee5b1be49d463c5e1e889ceaed93ed26857ba5c5fef"
+    }
+  }
+}
