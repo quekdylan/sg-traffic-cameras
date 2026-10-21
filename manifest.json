@@ -14,8 +14,12 @@
       "sha256": "0f96a474e715094c2c763e89f6778f9876fd01172868ac0e43becc025c988116"
     },
     "data/camera_data.h": {
-      "bytes": 48089,
-      "sha256": "658d0654e279bb4f086f27cf4b42e03c7864f93ffd0590f7d8f250aa29cde557"
+      "bytes": 48172,
+      "sha256": "64ed0da645a0d5eb4e3b5623ff696302f3e814037732f43cc884e1d2ea2eaae0"
+    },
+    "data/cameras.bin": {
+      "bytes": 12168,
+      "sha256": "4ffe5eb675c3bce38a7d8446649b868c76b9f874cb3fb2e20e3aab5720f29b49"
     }
   },
   "max_id": 350
