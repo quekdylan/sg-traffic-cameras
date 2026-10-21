@@ -38,6 +38,7 @@ struct Camera {
     uint16_t firstPoint;  // index of its first point in kCameraPoints
 };
 
+static constexpr uint32_t kCameraDataVersion = 20261014;  // manifest.json version
 static constexpr uint16_t kCameraCount = 350;
 static constexpr uint16_t kCameraPointCount = 1257;
 

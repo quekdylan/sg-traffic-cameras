@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Rebuild data/cameras.csv, data/camera_data.h and manifest.json from data/cameras.json.
+"""Rebuild data/cameras.csv, data/camera_data.h, data/cameras.bin and manifest.json from
+data/cameras.json.
 
-data/cameras.json is the source of truth. The manifest's version only goes up when one
-of the data files actually changes.
+data/cameras.json is the source of truth. The manifest's version only goes up when the
+camera data actually changes (the JSON or CSV); camera_data.h carries that version.
 
 Usage:
     python3 tools/build.py
@@ -14,10 +15,14 @@ import io
 import json
 import math
 import os
+import struct
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
-FILES = ("data/cameras.csv", "data/cameras.json", "data/camera_data.h")
+FILES = ("data/cameras.csv", "data/cameras.json", "data/camera_data.h", "data/cameras.bin")
+VERSIONED = ("data/cameras.csv", "data/cameras.json")  # a change here bumps the version
+BIN_MAGIC = b"SGCB"
+BIN_FORMAT = 1
 
 TYPES = [  # (code, enum name, label shown on screen)
     (1, "RedLight", "Red light camera"),
@@ -65,13 +70,33 @@ def cameras_csv(cams):
     return buf.getvalue()
 
 
-def camera_header(cams):
+def packed(cams):
+    """(rows, points): rows are (id, type, first point, point count); points in micro-degrees."""
     points, rows = [], []
     for c in cams:
         if not 2 <= len(c["path"]) <= 255:
             raise ValueError(f"camera {c['id']}: path has {len(c['path'])} points (need 2-255)")
         rows.append((c["id"], c["type"], len(points), len(c["path"])))
         points += [(round(lat * 1e6), round(lon * 1e6)) for lat, lon in c["path"]]
+    if len(points) > 65535:
+        raise ValueError(f"{len(points)} path points (max 65535)")
+    return rows, points
+
+
+def cameras_bin(cams):
+    """Same data as camera_data.h, as a little-endian file a device can download and use as is:
+    12-byte header ("SGCB", format, camera count, point count, 0), then the points
+    (int32 latE6, int32 lonE6) and the cameras (uint16 id, uint8 type, uint8 point count,
+    uint16 first point)."""
+    rows, points = packed(cams)
+    out = struct.pack("<4sHHHH", BIN_MAGIC, BIN_FORMAT, len(rows), len(points), 0)
+    out += b"".join(struct.pack("<ii", a, b) for a, b in points)
+    out += b"".join(struct.pack("<HBBH", cid, t, n, first) for cid, t, first, n in rows)
+    return out
+
+
+def camera_header(cams, version):
+    rows, points = packed(cams)
     out = [
         "#pragma once",
         "#include <stdint.h>",
@@ -103,6 +128,7 @@ def camera_header(cams):
         "    uint16_t firstPoint;  // index of its first point in kCameraPoints",
         "};",
         "",
+        f"static constexpr uint32_t kCameraDataVersion = {version};  // manifest.json version",
         f"static constexpr uint16_t kCameraCount = {len(rows)};",
         f"static constexpr uint16_t kCameraPointCount = {len(points)};",
         "",
@@ -120,27 +146,30 @@ def camera_header(cams):
 
 
 def build(cams, spf_checked=None):
-    """Write all data files and the manifest. Returns True if any data file changed."""
+    """Write all data files and the manifest. Returns True if the camera data changed."""
     cams = sorted(cams, key=lambda c: c["id"])
     contents = {
-        "data/cameras.csv": cameras_csv(cams),
-        "data/cameras.json": cameras_json(cams),
-        "data/camera_data.h": camera_header(cams),
+        "data/cameras.csv": cameras_csv(cams).encode(),
+        "data/cameras.json": cameras_json(cams).encode(),
+        "data/cameras.bin": cameras_bin(cams),
     }
     mpath = os.path.join(ROOT, "manifest.json")
     with open(mpath) as f:
         manifest = json.load(f)
-    files = {}
-    for name in FILES:
-        raw = contents[name].encode()
-        with open(os.path.join(ROOT, name), "wb") as f:
-            f.write(raw)
-        files[name] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
-    changed = files != manifest["files"]
+    old = manifest["files"]
+    changed = any(old.get(name, {}).get("sha256") != hashlib.sha256(contents[name]).hexdigest()
+                  for name in VERSIONED)
     d = today()
     if changed:
         manifest["version"] = max(int(d.strftime("%Y%m%d")), manifest["version"] + 1)
         manifest["updated"] = d.isoformat()
+    contents["data/camera_data.h"] = camera_header(cams, manifest["version"]).encode()
+    files = {}
+    for name in FILES:
+        raw = contents[name]
+        with open(os.path.join(ROOT, name), "wb") as f:
+            f.write(raw)
+        files[name] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
     if spf_checked:
         manifest["spf_checked"] = spf_checked.isoformat()
     manifest["cameras"] = len(cams)

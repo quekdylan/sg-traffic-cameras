@@ -32,6 +32,7 @@ Data is updated monthly. A GitHub Actions workflow checks the SPF pages once a m
 | `data/cameras.csv` | One row per camera, for spreadsheets and scripts |
 | `data/cameras.json` | Same data as JSON |
 | `data/camera_data.h` | C/C++ header for microcontrollers (ESP32 etc.), about 12 KB of flash |
+| `data/cameras.bin` | The same data as a small binary file, for devices that download updates (format below) |
 | `manifest.json` | Data version, counts and SHA-256 of each file, for devices that check for updates |
 | `review/` | Cameras waiting for their paths to be checked, and the result of the last SPF check |
 | `tools/`, `editor/`, `map/` | The update scripts, the path editor and the map page |
@@ -50,7 +51,9 @@ Data is updated monthly. A GitHub Actions workflow checks the SPF pages once a m
 | `path_points` | (CSV only) Number of points in the path |
 | `path` | The approach path. Points run from the start of the approach to the camera, so the last point is at the camera. In the CSV the points are `lat lon` pairs separated by `;`. In the JSON they're `[lat, lon]` arrays. |
 
-In `camera_data.h`, coordinates are integers in micro-degrees (degrees × 1,000,000). `kCameras[i].firstPoint` and `pointCount` index into `kCameraPoints`.
+In `camera_data.h`, coordinates are integers in micro-degrees (degrees × 1,000,000). `kCameras[i].firstPoint` and `pointCount` index into `kCameraPoints`. `kCameraDataVersion` is the manifest version the header was built from.
+
+`cameras.bin` holds the same arrays, little-endian: a 12-byte header (`SGCB`, format `1` as uint16, camera count uint16, point count uint16, 0 uint16), then the points (int32 latE6, int32 lonE6, 8 bytes each), then the cameras (uint16 id, uint8 type, uint8 point count, uint16 first point, 6 bytes each).
 
 
 ## Using it on a device
