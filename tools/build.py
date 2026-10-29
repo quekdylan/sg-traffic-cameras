@@ -164,7 +164,7 @@ def build(cams, spf_checked=None):
         manifest["version"] = max(int(d.strftime("%Y%m%d")), manifest["version"] + 1)
         manifest["updated"] = d.isoformat()
     contents["data/camera_data.h"] = camera_header(cams, manifest["version"]).encode()
-    files = {}
+    files = {k: v for k, v in old.items() if k not in FILES}  # keep other data sets' entries
     for name in FILES:
         raw = contents[name]
         with open(os.path.join(ROOT, name), "wb") as f:
