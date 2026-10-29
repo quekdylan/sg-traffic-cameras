@@ -34,12 +34,17 @@ const TYPES = {
   5: ['Police speed laser (random)', '#2fa8d8'],
   6: ['Traffic violation (TVEC)', '#bf5af2'],
 };
+const LANES = {  // bus lane types in data/buslanes.json
+  normal: ['Normal bus lane', '#e6b800'],
+  full_day: ['Full-day bus lane', '#d93025'],
+  bus_only: ['Bus-only lane', '#8e44ad'],
+};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const map = L.map('map', { preferCanvas: true }).setView([1.3521, 103.8198], 12);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Cameras: Singapore Police Force',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Cameras: Singapore Police Force · Bus lanes: LTA',
 }).addTo(map);
 
 const info = L.control({ position: 'topleft' });
@@ -50,6 +55,8 @@ info.onAdd = () => {
   return d;
 };
 info.addTo(map);
+
+const layers = L.control.layers(null, {}, { collapsed: window.innerWidth < 600 }).addTo(map);
 
 fetch('../data/cameras.json', { cache: 'no-store' })
   .then(r => r.json())
@@ -64,15 +71,41 @@ fetch('../data/cameras.json', { cache: 'no-store' })
       L.circleMarker([c.lat, c.lon], { radius: 6, color: '#ffffff', weight: 1.5, fillColor: color, fillOpacity: 1 })
         .bindPopup(popup).bindTooltip('#' + c.id + ' ' + name).addTo(groups[c.type]);
     }
-    const overlays = {};
     for (const t in TYPES) {
       const n = cams.filter(c => c.type === +t).length;
-      overlays['<span class="sw" style="background:' + TYPES[t][1] + '"></span>' + TYPES[t][0] + ' (' + n + ')'] = groups[t];
+      layers.addOverlay(groups[t], '<span class="sw" style="background:' + TYPES[t][1] + '"></span>' + TYPES[t][0] + ' (' + n + ')');
     }
-    L.control.layers(null, overlays, { collapsed: window.innerWidth < 600 }).addTo(map);
     document.getElementById('count').textContent = cams.length + ' cameras. Tick or untick types on the right.';
   })
   .catch(() => { document.getElementById('count').textContent = 'Could not load the camera data.'; });
+
+// Bus lanes: off until ticked. Each line runs in the direction of travel.
+fetch('../data/buslanes.json', { cache: 'no-store' })
+  .then(r => r.json())
+  .then(data => {
+    const hours = {};
+    for (const s of data.schedules) {
+      const days = s.days === 0x7f ? 'Every day' : s.days === 0x3f ? 'Mon–Sat' : s.days === 0x1f ? 'Mon–Fri' : 'Some days';
+      hours[s.type] = days + ' ' + s.windows.map(w => w[0] + '–' + w[1]).join(', ') +
+        (s.not_on_holidays ? ', not on public holidays' : '');
+    }
+    const groups = {};
+    for (const t in LANES) groups[t] = L.layerGroup();
+    for (const s of data.stretches) {
+      const [name, color] = LANES[s.type] || ['Bus lane', '#888888'];
+      const popup = '<b>' + esc(name) + '</b><br>' + esc(s.road || 'Unnamed road') + '<br>' + esc(hours[s.type] || '') +
+        '<br>' + s.length_m + ' m, stretch #' + s.id;
+      L.polyline(s.path, { color, weight: 5, opacity: 0.75 }).bindPopup(popup).addTo(groups[s.type] || map);
+      const end = s.path[s.path.length - 1];  // a dot where it ends, to show the direction
+      L.circleMarker(end, { radius: 3, color, weight: 1, fillColor: '#ffffff', fillOpacity: 1 }).addTo(groups[s.type] || map);
+    }
+    for (const t in LANES) {
+      const n = data.stretches.filter(s => s.type === t).length;
+      layers.addOverlay(groups[t], '<span class="sw" style="background:' + LANES[t][1] + ';border-radius:2px"></span>' +
+        LANES[t][0] + 's (' + n + ')');
+    }
+  })
+  .catch(() => {});
 </script>
 </body>
 </html>

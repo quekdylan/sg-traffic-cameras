@@ -11,6 +11,10 @@ Attribution:
   (https://www.openstreetmap.org/copyright)
 - Camera locations, types and descriptions: Singapore Police Force
   (https://www.police.gov.sg)
+- Bus lanes: contains information from LTA Lane Marking, LTA Traffic Sign
+  and Singapore Public Holidays accessed from data.gov.sg, made available
+  under the terms of the Singapore Open Data Licence version 1.0
+  (https://data.gov.sg/open-data-licence)
 
 This project is not affiliated with or endorsed by the Singapore Police Force.
 The data is provided as-is, without warranty of any kind.

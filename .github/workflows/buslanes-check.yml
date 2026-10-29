@@ -1,0 +1,58 @@
+name: Monthly bus lane check
+
+on:
+  schedule:
+    - cron: "37 1 1 * *"  # 09:37 Singapore time on the 1st of every month (after the SPF check)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Publish even if the safety check fails (the lanes really did change a lot)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rebuilds only when LTA's lane markings or traffic signs, or MOM's public holidays,
+      # changed since the last build. A failed run (download error, or the safety check
+      # below) emails the repo owner.
+      - name: Compare with the LTA and MOM data
+        id: check
+        run: python3 tools/buslanes.py check ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit
+        run: |
+          cat review/buslanes_summary.md >> "$GITHUB_STEP_SUMMARY"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data manifest.json review cache
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -q -m "Bus lane check $(date -u +%F)" -m "$(cat review/buslanes_summary.md)"
+          git push
+
+      - name: Report a blocked update
+        if: failure() && steps.check.outputs.blocked == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat review/buslanes_summary.md >> "$GITHUB_STEP_SUMMARY"
+          body="$(cat review/buslanes_summary.md)
+
+          The published bus lane data was left as it is. If the change is real, run this workflow again with **force** ticked: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/buslanes-check.yml"
+          num=$(gh issue list --state open --search "Bus lane update blocked in:title" --json number --jq '.[0].number')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body "$body"
+          else
+            gh issue create --title "Bus lane update blocked" --body "$body"
+          fi

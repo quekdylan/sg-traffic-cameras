@@ -5,6 +5,18 @@
   "cameras": 350,
   "path_points": 1257,
   "files": {
+    "data/buslanes.json": {
+      "bytes": 91533,
+      "sha256": "48a7945117c736a7b9dbe4955ed9a2b19622899ab748819a8eaee77ad4b6e92d"
+    },
+    "data/buslanes.bin": {
+      "bytes": 22580,
+      "sha256": "a203e8737fd93de4769058f991b5ee9ceb45f983a141e13ef04c92e67f47374c"
+    },
+    "data/bus_lane_data.h": {
+      "bytes": 83706,
+      "sha256": "acdb311598ef46a6346b7206ed7bf25722e7e6575e232a5b7c2ec7cbbe33c70a"
+    },
     "data/cameras.csv": {
       "bytes": 60129,
       "sha256": "f6f74f3462fb3ad6b7504670302041908541ac85052a9c2cbbe10dfa98ce0988"
@@ -22,5 +34,17 @@
       "sha256": "4ffe5eb675c3bce38a7d8446649b868c76b9f874cb3fb2e20e3aab5720f29b49"
     }
   },
-  "max_id": 350
+  "max_id": 350,
+  "buslanes": {
+    "version": 20261029,
+    "updated": "2026-10-29",
+    "stretches": 538,
+    "points": 2259,
+    "length_km": 180.6,
+    "sources": {
+      "lane_marking": "2026-10-06T10:08:54+08:00",
+      "traffic_sign": "2026-10-27T10:07:08+08:00",
+      "holidays": "2026-07-03T16:04:00+08:00"
+    }
+  }
 }
