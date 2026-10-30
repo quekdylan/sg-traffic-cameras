@@ -1,5 +1,5 @@
 {
-  "version": 20261030,
+  "version": 20261031,
   "updated": "2026-10-30",
   "spf_checked": "2026-10-11",
   "cameras": 382,
@@ -19,23 +19,23 @@
     },
     "data/cameras.csv": {
       "bytes": 67224,
-      "sha256": "a7ab8ea717adf24f7c868ef33e8098a09966e35b8ef08ce4874948e3dd571eb2"
+      "sha256": "a246e86536b1bf511d9a8c128c7393d6f0f9efe41b29d95b1962f444a19e8552"
     },
     "data/cameras.json": {
       "bytes": 79891,
       "sha256": "0f96a474e715094c2c763e89f6778f9876fd01172868ac0e43becc025c988116"
     },
     "data/my_cameras.json": {
-      "bytes": 8706,
-      "sha256": "16c4085cd8e84fd7b82deb82165724267de05ce64fe2b7bbbb45eace33b3a623"
+      "bytes": 8707,
+      "sha256": "897fdbe5c9835e5e696c0ee34777b78015dceb2bc52269a1503ddd2cab37663e"
     },
     "data/camera_data.h": {
       "bytes": 52793,
-      "sha256": "71af432a7c4130278af3ae90f371892278efe6b988bf9528745c5542595016ff"
+      "sha256": "699323c337f2c8d3d7a46c766cfb80cc876f76a64f2b437f02cc86a5216d2c1f"
     },
     "data/cameras.bin": {
       "bytes": 13320,
-      "sha256": "443895d06cdff7044076a7bd22cd42603b588623a9e4f70d012829f2b6aa1434"
+      "sha256": "667f6950ee9e9a5c9de749e09772655fd4b6616b23afbc52f91fd25abb83fdf1"
     }
   },
   "max_id": 350,
