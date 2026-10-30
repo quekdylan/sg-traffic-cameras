@@ -33,6 +33,7 @@ JUNCTION_SEARCH_M = 120.0 # red light: look this far along the road for the junc
 GRID_M = 100.0
 
 APPROACH_M = 400.0      # length of each approach path
+EXPRESSWAY_APPROACH_M = 800.0  # Malaysian expressway cameras: ~25 s of warning at 110 km/h
 CAND_RADIUS_M = 30.0    # roads this close to a camera become candidates
 EXTRA_RADIUS_M = 60.0   # further roads offered as extra options (e.g. the far carriageway)
 MAX_EXTRA = 4
@@ -62,18 +63,41 @@ def fetch_area(lat, lon, radius=AREA_M):
     raise RuntimeError("all Overpass endpoints failed")
 
 
-def suggest(cam):
+def set_origin(lat, lon):
+    """Centre the flat x/y projection on a point. Singapore is the default; cameras
+    elsewhere (Malaysia) project around themselves so distances stay accurate."""
+    global LAT0, LON0, M_PER_DEG_LON
+    LAT0, LON0 = lat, lon
+    M_PER_DEG_LON = 111320.0 * math.cos(math.radians(lat))
+
+
+def suggest(cam, length=APPROACH_M, bearing=None):
     """Candidate approach paths for one camera {type, lat, lon}.
+
+    length is how far back each path goes, or "auto" for EXPRESSWAY_APPROACH_M when the
+    camera sits on a motorway and APPROACH_M otherwise; bearing, when known, is the
+    direction of travel past the camera and picks the default candidate.
 
     Returns {cands, def, conf, roads}: candidate paths (each with pts from the start of the
     approach to the camera), the index of the likeliest one or None, a confidence, and the
     nearby roads for drawing in the editor.
     """
-    roads, junctions, grid = load_roads(fetch_area(cam["lat"], cam["lon"]))
+    if not (1.1 < cam["lat"] < 1.5 and 103.5 < cam["lon"] < 104.2):
+        set_origin(cam["lat"], cam["lon"])
+    auto = length == "auto"
+    if auto:
+        length = EXPRESSWAY_APPROACH_M
+    roads, junctions, grid = load_roads(fetch_area(cam["lat"], cam["lon"], max(AREA_M, length + 400)))
     nidx = node_index(roads)
     snap, _ = classify({"type": str(cam["type"]), "lat": cam["lat"], "lon": cam["lon"],
                         "lat_raw": repr(cam["lat"]), "lon_raw": repr(cam["lon"])}, roads, junctions, grid)
-    cands, base = build_candidates(to_xy(cam["lat"], cam["lon"]), roads, grid, nidx)
+    if auto:
+        near = candidates(*to_xy(cam["lat"], cam["lon"]), roads, grid, SNAP_MAX_M)
+        if not near or roads[near[0]["road"]].highway != "motorway":
+            length = APPROACH_M
+    cands, base = build_candidates(to_xy(cam["lat"], cam["lon"]), roads, grid, nidx, length)
+    if bearing is not None:
+        snap = dict(snap, bearing_deg=bearing)
     choice = default_choice(cands[:base], snap)
     for c in cands:
         del c["_tb"]
@@ -356,19 +380,19 @@ def path_len(pts):
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:]))
 
 
-def _cands_for(c, roads, nidx):
+def _cands_for(c, roads, nidx, length=APPROACH_M):
     r = roads[c["road"]]
     out = []
     for d in {1: [1], -1: [-1], 0: [1, -1]}[r.oneway]:
         tb = c["seg_bearing"] if d == 1 else (c["seg_bearing"] + 180.0) % 360.0
-        pts = simplify(trace_back(roads, nidx, c["road"], c["seg"], (c["qx"], c["qy"]), d, APPROACH_M), SIMPLIFY_M)
+        pts = simplify(trace_back(roads, nidx, c["road"], c["seg"], (c["qx"], c["qy"]), d, length), SIMPLIFY_M)
         out.append({"road": r.name or r.highway, "highway": r.highway, "bearing": round(tb),
                     "dist": round(c["dist"], 1), "len": round(path_len(pts)),
                     "pts": [ll(p) for p in pts], "_tb": tb})
     return out
 
 
-def build_candidates(cam_xy, roads, grid, nidx):
+def build_candidates(cam_xy, roads, grid, nidx, length=APPROACH_M):
     """Returns (candidates, number of base candidates).
 
     The base list must keep its order: saved editor edits refer to candidates by index.
@@ -377,7 +401,7 @@ def build_candidates(cam_xy, roads, grid, nidx):
     first = candidates(cam_xy[0], cam_xy[1], roads, grid, CAND_RADIUS_M)[:4]
     cands = []
     for c in first:
-        cands += _cands_for(c, roads, nidx)
+        cands += _cands_for(c, roads, nidx, length)
     cands = cands[:MAX_CANDS]
     base = len(cands)
     have = {(k["road"], round(k["_tb"] / 15)) for k in cands}
@@ -387,7 +411,7 @@ def build_candidates(cam_xy, roads, grid, nidx):
     for c in near:
         if c["road"] in used or len(extra) >= MAX_EXTRA:
             continue
-        for k in _cands_for(c, roads, nidx):
+        for k in _cands_for(c, roads, nidx, length):
             key = (k["road"], round(k["_tb"] / 15))
             if key not in have and len(k["pts"]) >= 2 and len(extra) < MAX_EXTRA:
                 have.add(key)

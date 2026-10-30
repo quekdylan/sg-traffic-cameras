@@ -8,6 +8,12 @@ The data is meant for GPS camera-warning devices.
 
 Data is updated monthly. A GitHub Actions workflow checks the SPF pages once a month and updates the data when cameras are added, moved or removed, and is published after a manual review.
 
+## Malaysian cameras
+
+`data/my_cameras.json` has fixed speed and red light cameras in Peninsular Malaysia. Malaysia doesn't publish camera coordinates, so these come from OpenStreetMap: each one was checked by hand against satellite imagery, Street View and the AES/AwAS camera lists in the news before it was added, and only checked cameras are included. Expressway cameras have 800 m approach paths (about 25 s of warning at 110 km/h); the rest have 400 m, like Singapore's.
+
+Malaysian cameras are numbered from 5001, use the same fields and type codes (1 red light, 2 fixed speed), and are included in `cameras.csv`, `camera_data.h` and `cameras.bin` next to the Singapore ones. The monthly SPF check never touches them. New ones are added with `tools/malaysia.py add FILE` and reviewed in the editor like new SPF cameras.
+
 ## Bus lanes
 
 The repo also has Singapore's bus lanes with their hours, for devices that warn when the car is on a bus lane that's in operation. They're built from LTA's own road markings: every painted bus lane line is matched to its OpenStreetMap carriageway to get the direction of travel, and lines on the same road are joined into stretches that follow the road's centre line, which is where a car's GPS fix sits.
@@ -42,7 +48,8 @@ A second monthly workflow (`buslanes-check.yml`) rebuilds the bus lanes whenever
 | File | What it is |
 |---|---|
 | `data/cameras.csv` | One row per camera, for spreadsheets and scripts |
-| `data/cameras.json` | Same data as JSON |
+| `data/cameras.json` | The Singapore cameras as JSON |
+| `data/my_cameras.json` | The Malaysian cameras as JSON, same fields plus `source` (the OpenStreetMap node) |
 | `data/camera_data.h` | C/C++ header for microcontrollers (ESP32 etc.), about 12 KB of flash |
 | `data/cameras.bin` | The same data as a small binary file, for devices that download updates (format below) |
 | `data/buslanes.json` | Bus lane stretches (id, type, road, length, path in the direction of travel), their schedules and public holidays |
@@ -57,14 +64,16 @@ A second monthly workflow (`buslanes-check.yml`) rebuilds the bus lanes whenever
 
 | Field | Meaning |
 |---|---|
-| `id` | Camera id, stable across updates |
+| `id` | Camera id, stable across updates. Singapore cameras are numbered from 1, Malaysian ones from 5001 |
 | `type` | Camera type code (see below) |
 | `category` | Camera type name |
-| `location` | SPF's own description, e.g. `Adam Rd by Dunearn Rd twds Farrer Rd` |
-| `lat`, `lon` | Camera position as published by SPF (WGS84) |
+| `location` | SPF's own description, e.g. `Adam Rd by Dunearn Rd twds Farrer Rd`. For Malaysian cameras, the road, KM marker and direction, e.g. `North-South Expressway (E2) KM 184.2, Jasin (northbound)` |
+| `lat`, `lon` | Camera position as published by SPF, or as checked on OpenStreetMap for Malaysia (WGS84) |
 | `bearing_deg` | (CSV only) Direction of travel at the camera, 0 = north, 90 = east |
 | `path_length_m` | (CSV only) Length of the approach path in metres |
 | `path_points` | (CSV only) Number of points in the path |
+| `country` | (CSV only) `SG` or `MY` |
+| `source` | (Malaysian cameras only) The OpenStreetMap node the position came from |
 | `path` | The approach path. Points run from the start of the approach to the camera, so the last point is at the camera. In the CSV the points are `lat lon` pairs separated by `;`. In the JSON they're `[lat, lon]` arrays. |
 
 In `camera_data.h`, coordinates are integers in micro-degrees (degrees × 1,000,000). `kCameras[i].firstPoint` and `pointCount` index into `kCameraPoints`. `kCameraDataVersion` is the manifest version the header was built from.
@@ -101,13 +110,14 @@ Notice an issue with the data?
 - SPF, [Traffic Violation Enforcement Camera Locations](https://www.police.gov.sg/knowledge-hub/traffic/traffic-matters/traffic-violation-enforcement-camera-locations)
 - LTA, [Lane Marking](https://data.gov.sg/datasets/d_fa71cc0c433275f4d2b0133358cc4fbf/view) and [Traffic Sign](https://data.gov.sg/datasets/d_bbf0132c7290d6838f82003972d933d5/view) (bus lanes)
 - MOM, [Singapore Public Holidays](https://data.gov.sg/datasets/d_8ef23381f9417e4d4254ee8b4dcdb176/view)
+- Malaysian camera positions © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), checked by hand
 - Road geometry © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), via the [BBBike](https://download.bbbike.org/osm/bbbike/Singapore/) extract for the bus lanes
 
 ## License
 
 The approach paths are derived from OpenStreetMap, so this dataset is released under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). You're free to use, share and adapt it, including commercially, as long as you:
 
-- credit "© OpenStreetMap contributors" and the Singapore Police Force as the source of the camera locations, and for the bus lanes: "Contains information from LTA Lane Marking, LTA Traffic Sign and Singapore Public Holidays accessed from data.gov.sg, made available under the terms of the Singapore Open Data Licence version 1.0", and
+- credit "© OpenStreetMap contributors" and the Singapore Police Force as the source of the camera locations (OpenStreetMap alone for the Malaysian ones), and for the bus lanes: "Contains information from LTA Lane Marking, LTA Traffic Sign and Singapore Public Holidays accessed from data.gov.sg, made available under the terms of the Singapore Open Data Licence version 1.0", and
 - share any database you build from it under the ODbL as well.
 
 This project isn't affiliated with or endorsed by the Singapore Police Force. The data is provided as-is, with no guarantee that it's complete or accurate. Always obey road signs and speed limits.
