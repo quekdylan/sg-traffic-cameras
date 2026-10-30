@@ -46,7 +46,10 @@ h1 { margin: 0; font-size: 19px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
 .chip { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
-.chip.new { color: var(--accent); } .chip.approved, .chip.changed { color: var(--ok); } .chip.published { color: var(--muted); }
+.chip.new { color: var(--accent); }
+.filter { display: flex; gap: 6px; }
+.filter button { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: none; cursor: pointer; font-size: 13px; }
+.filter button[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--panel); } .chip.approved, .chip.changed { color: var(--ok); } .chip.published { color: var(--muted); }
 
 .back { background: none; border: 0; padding: 0; color: var(--path); cursor: pointer; justify-self: start; }
 .title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -149,11 +152,27 @@ const arrow = deg => '<svg width="20" height="20" viewBox="-10 -10 20 20" aria-h
 
 // ---------- state
 let CAMS = [], BY_ID = new Map();
-let mode = 'new', view = 'list', current = null, query = '';
+let mode = 'new', view = 'list', current = null, query = '', country = 'all';
 let drawing = null, selVertex = null;
 const edits = new Map();   // id -> { cand, path, approved }
 
 const edit = id => edits.get(id) || {};
+const isMY = c => +c.id >= 5001;   // Malaysian cameras are numbered from 5001
+const inCountry = c => country === 'all' || (country === 'my') === isMY(c);
+function countryFilter(list) {
+  // Only worth showing when the list has cameras from both countries.
+  if (!list.some(isMY) || list.every(isMY)) return '';
+  return '<div class="filter" role="group" aria-label="Country">' +
+    [['all', 'All'], ['sg', 'Singapore'], ['my', 'Malaysia']].map(([k, t]) =>
+      '<button data-country="' + k + '" aria-pressed="' + (country === k) + '">' + t + '</button>').join('') + '</div>';
+}
+function bindFilter(el) {
+  el.querySelectorAll('[data-country]').forEach(b => b.onclick = () => {
+    country = b.dataset.country;
+    el.querySelectorAll('[data-country]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    render();
+  });
+}
 function pathOf(c) {
   const e = edit(c.id);
   if (e.path && e.path.length >= 2) return e.path;
@@ -218,15 +237,17 @@ function renderNewList(pend) {
       '<p class="hint">To correct an existing camera, use <b>Fix a camera</b>.</p></div>';
     return;
   }
-  bodyEl.innerHTML = '<div class="pad"><p class="hint">These cameras were added or moved on the SPF list. Check that each path follows the road traffic takes to reach the camera, then approve it.</p></div>' +
-    pend.map(row).join('');
+  bodyEl.innerHTML = '<div class="pad"><p class="hint">These cameras were added or moved on the SPF list, or are Malaysian cameras checked by hand. Check that each path follows the road traffic takes to reach the camera, then approve it.</p>' +
+    countryFilter(pend) + '</div>' + pend.filter(inCountry).map(row).join('');
   bindRows(bodyEl);
+  bindFilter(bodyEl);
 }
 
 function renderFixList() {
   if (!bodyEl.querySelector('#q')) {
     bodyEl.innerHTML = '<div class="pad"><input id="q" class="search" type="search" placeholder="Camera number or road name" aria-label="Find a camera">' +
-      '<p class="hint">Or tap a camera on the map.</p></div><div id="results"></div>';
+      countryFilter(CAMS) + '<p class="hint">Or tap a camera on the map.</p></div><div id="results"></div>';
+    bindFilter(bodyEl);
     const q = bodyEl.querySelector('#q');
     q.value = query;
     q.oninput = () => { query = q.value; renderResults(); };
@@ -236,7 +257,7 @@ function renderFixList() {
 function renderResults() {
   const el = document.getElementById('results'); if (!el) return;
   const q = query.trim().toLowerCase().replace(/^#/, '');
-  const hits = !q ? CAMS.filter(isChange) : CAMS.filter(c => c.id === q || c.location.toLowerCase().includes(q));
+  const hits = (!q ? CAMS.filter(isChange) : CAMS.filter(c => c.id === q || c.location.toLowerCase().includes(q))).filter(inCountry);
   el.innerHTML = hits.slice(0, 60).map(row).join('') +
     (q && !hits.length ? '<div class="pad empty">No camera matches.</div>' : '') +
     (hits.length > 60 ? '<div class="pad hint">Showing 60 of ' + hits.length + '. Type more to narrow it down.</div>' : '');
@@ -250,10 +271,12 @@ function renderCamera() {
     '<button class="back" id="back">← ' + (mode === 'new' ? 'New cameras' : 'Back to search') + '</button>' +
     '<div class="title"><b>#' + c.id + '</b><span class="type">' + esc(TYPES[c.type][0]) + '</span><span class="chip ' + cls + '">' + txt + '</span></div>' +
     '<div class="spf">' + esc(c.location) + '</div>';
-  if (c.why) h += '<div class="why">' + (c.why === 'new' ? 'New on the SPF list' : 'Moved on the SPF list (' + esc(c.why.replace('moved from', 'was at')) + ')') + '</div>';
+  if (c.why) h += '<div class="why">' + (c.why === 'new' ? 'New on the SPF list'
+    : c.why === 'new-my' ? 'New Malaysian camera, position checked by hand' + (c.source ? ' (' + esc(c.source) + ')' : '')
+    : 'Moved on the SPF list (' + esc(c.why.replace('moved from', 'was at')) + ')') + '</div>';
 
   if (drawing) {
-    h += '<div class="note">Tap the map along the road, <b>in the direction traffic drives</b>. Start about 300 to 400 m before the camera and finish at the camera. You can zoom and pan while drawing.</div>' +
+    h += '<div class="note">Tap the map along the road, <b>in the direction traffic drives</b>. Start about ' + (isMY(c) && /expressway/i.test(c.location) ? '800' : '300 to 400') + ' m before the camera and finish at the camera. You can zoom and pan while drawing.</div>' +
       '<div class="hint">' + drawing.length + ' point' + (drawing.length === 1 ? '' : 's') + ' so far</div>' +
       '<div class="tools"><button class="btn primary" id="drawDone"' + (drawing.length < 2 ? ' disabled' : '') + '>Use this path</button>' +
       '<button class="btn" id="drawUndo"' + (drawing.length ? '' : ' disabled') + '>Undo point</button>' +
@@ -385,7 +408,7 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
 });
 
 // ---------- map
-const map = L.map('map', { zoomControl: true, maxZoom: 21, minZoom: 10 }).setView([LAT0, LON0], 12);
+const map = L.map('map', { zoomControl: true, maxZoom: 21, minZoom: 6 }).setView([LAT0, LON0], 12);
 map.attributionControl.setPrefix(false);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21,
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
@@ -493,10 +516,12 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'Delete' || e.key === 'Backspace') && selVertex !== null) { e.preventDefault(); deleteVertex(); }
 });
 
-// ---------- load: cameras waiting for review plus every published camera, straight from the repo
+// ---------- load: cameras waiting for review plus every published camera (Singapore and
+// Malaysia), straight from the repo
 const raw = f => fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + f + '?t=' + Date.now(), { cache: 'no-store' })
   .then(r => r.ok ? r.json() : null).catch(() => null);
-Promise.all([raw('review/pending.json'), raw('data/cameras.json')]).then(([P, D]) => {
+Promise.all([raw('review/pending.json'), raw('data/cameras.json'), raw('data/my_cameras.json')]).then(([P, D, M]) => {
+  if (D) D = D.concat(M || []);
   if (!D) { bodyEl.innerHTML = '<div class="pad empty">Could not load the camera data. Check your connection and reload.</div>'; return; }
   const pending = ((P && P.cameras) || []).map(c => Object.assign(c, { pending: true }));
   const waiting = new Set(pending.map(c => c.id));

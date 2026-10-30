@@ -44,7 +44,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const map = L.map('map', { preferCanvas: true }).setView([1.3521, 103.8198], 12);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Cameras: Singapore Police Force · Bus lanes: LTA',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Cameras: Singapore Police Force, Malaysia: OpenStreetMap · Bus lanes: LTA',
 }).addTo(map);
 
 const info = L.control({ position: 'topleft' });
@@ -58,9 +58,12 @@ info.addTo(map);
 
 const layers = L.control.layers(null, {}, { collapsed: window.innerWidth < 600 }).addTo(map);
 
-fetch('../data/cameras.json', { cache: 'no-store' })
-  .then(r => r.json())
-  .then(cams => {
+// Singapore cameras, plus the Malaysian ones (ids from 5001) once that file exists.
+const getJson = f => fetch(f, { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+Promise.all([getJson('../data/cameras.json'), getJson('../data/my_cameras.json').catch(() => null)])
+  .then(([sg, my]) => {
+    if (!sg) throw new Error('no data');
+    const cams = sg.concat(my || []);
     const groups = {};
     for (const t in TYPES) groups[t] = L.layerGroup().addTo(map);
     for (const c of cams) {
@@ -75,7 +78,9 @@ fetch('../data/cameras.json', { cache: 'no-store' })
       const n = cams.filter(c => c.type === +t).length;
       layers.addOverlay(groups[t], '<span class="sw" style="background:' + TYPES[t][1] + '"></span>' + TYPES[t][0] + ' (' + n + ')');
     }
-    document.getElementById('count').textContent = cams.length + ' cameras. Tick or untick types on the right.';
+    const nMy = (my || []).length;
+    document.getElementById('count').textContent = cams.length + ' cameras' +
+      (nMy ? ' (' + sg.length + ' in Singapore, ' + nMy + ' in Malaysia)' : '') + '. Tick or untick types on the right.';
   })
   .catch(() => { document.getElementById('count').textContent = 'Could not load the camera data.'; });
 

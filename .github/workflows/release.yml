@@ -39,5 +39,7 @@ jobs:
             echo
             echo "Data © OpenStreetMap contributors and Singapore Police Force, under the ODbL 1.0."
           } > notes.md
-          gh release create "v$v" data/cameras.csv data/cameras.json data/camera_data.h data/cameras.bin manifest.json \
+          extra=""
+          [ -f data/my_cameras.json ] && extra="data/my_cameras.json"
+          gh release create "v$v" data/cameras.csv data/cameras.json $extra data/camera_data.h data/cameras.bin manifest.json \
             --target main --title "Camera data v$v" --notes-file notes.md

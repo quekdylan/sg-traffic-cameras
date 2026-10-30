@@ -14,6 +14,9 @@ cameras from pending into the data or replaces the paths of published cameras, a
 the submitted files.
 
 Both rebuild the data files and manifest, and write a short summary to review/summary.md.
+
+Malaysian cameras (ids from 5001, kept in data/my_cameras.json) aren't on the SPF lists:
+check leaves them alone, and apply publishes their reviewed paths like any other camera.
 """
 import datetime
 import glob
@@ -29,6 +32,11 @@ PENDING = os.path.join(ROOT, "review", "pending.json")
 SUBMITTED = os.path.join(ROOT, "review", "submitted")
 SUMMARY = os.path.join(ROOT, "review", "summary.md")
 FIELDS = ("id", "type", "category", "location", "lat", "lon")
+OPTIONAL = ("source",)  # kept when present, e.g. the OpenStreetMap node of a Malaysian camera
+
+
+def fields(c):
+    return dict({k: c[k] for k in FIELDS}, **{k: c[k] for k in OPTIONAL if k in c})
 
 
 def load_pending():
@@ -79,8 +87,9 @@ def path_problem(cam, pts):
         if not (isinstance(p, list) and len(p) == 2 and
                 all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in p)):
             return "has a point that isn't a [lat, lon] pair"
-        if not (1.1 < p[0] < 1.5 and 103.5 < p[1] < 104.2):
-            return "goes outside Singapore"
+        lat0, lat1, lon0, lon1 = build.bounds_for(cam)
+        if not (lat0 < p[0] < lat1 and lon0 < p[1] < lon1):
+            return "goes outside " + ("Malaysia" if build.is_my(cam) else "Singapore")
     end = build.metres(pts[-1], (cam["lat"], cam["lon"]))
     if end > MAX_END_M:
         return f"ends {end:.0f} m from the camera (it must end within {MAX_END_M} m)"
@@ -153,7 +162,9 @@ def check():
     import spf
 
     data = build.load()
-    pending = load_pending()
+    pending, my_pending = [], []
+    for c in load_pending():
+        (my_pending if build.is_my(c) else pending).append(c)
     rows = spf.fetch_all()
     types = {r["type"] for r in rows}
     if types != {1, 2, 3, 4, 5, 6} or len(rows) < 0.8 * (len(data) + len(pending)):
@@ -167,6 +178,8 @@ def check():
 
     manifest = json.load(open(os.path.join(ROOT, "manifest.json")))
     next_id = max([manifest.get("max_id", 0)] + [c["id"] for c in data + pending]) + 1
+    if next_id >= build.MY_ID_BASE:
+        sys.exit(f"Singapore camera ids have reached {build.MY_ID_BASE}, where Malaysian ids start")
     out_data, out_pending, text_changes, to_review = [], [], [], []
     for s, c in kept:
         if (c["location"], c["category"]) != (s["location"], s["category"]):
@@ -183,7 +196,7 @@ def check():
         print(f"guessing a path for {label(c)}", file=sys.stderr)
         guess = paths.suggest(c)
         guess.pop("roads")  # the editor draws on an OpenStreetMap base map instead
-        out_pending.append(dict({k: c[k] for k in FIELDS}, **guess, why=c["_why"]))
+        out_pending.append(dict(fields(c), **guess, why=c["_why"]))
 
     for c in out_data + out_pending:
         c.pop("_pending", None)
@@ -194,7 +207,7 @@ def check():
     manifest["max_id"] = manifest_max
     with open(os.path.join(ROOT, "manifest.json"), "w") as f:
         f.write(json.dumps(manifest, indent=2) + "\n")
-    save_pending(out_pending)
+    save_pending(out_pending + my_pending)
 
     lines = [f"SPF check {build.today().isoformat()}: {len(rows)} cameras on the SPF pages."]
     if removed:
@@ -208,6 +221,8 @@ def check():
         lines += ["", "No changes."]
     if out_pending:
         lines += ["", f"{len(out_pending)} camera(s) waiting for review in total."]
+    if my_pending:
+        lines += ["", f"{len(my_pending)} Malaysian camera(s) also waiting for review."]
     write_summary(lines)
     output(data_changed=str(changed).lower(), pending=len(out_pending), new_review=len(to_review))
 
@@ -216,9 +231,9 @@ def apply():
     pending = {c["id"]: c for c in load_pending()}
     files = sorted(glob.glob(os.path.join(SUBMITTED, "*.json")))
     submitted, skipped = load_submissions(files)
-    data = build.load()
+    data, my = build.load(), build.load_my()
     added, updated = [], []
-    by_id = {c["id"]: c for c in data}
+    by_id = {c["id"]: c for c in data + my}
     for cid, pts in sorted(submitted.items()):
         cam = pending.get(cid) or by_id.get(cid)
         if cam is None:
@@ -231,12 +246,12 @@ def apply():
         path = [[round(a, 6), round(b, 6)] for a, b in pts]
         if cid in pending:
             c = pending.pop(cid)
-            data.append(dict({k: c[k] for k in FIELDS}, path=path))
+            (my if build.is_my(c) else data).append(dict(fields(c), path=path))
             added.append(f"- {label(c)}")
         elif by_id[cid]["path"] != path:
             by_id[cid]["path"] = path
             updated.append(f"- {label(by_id[cid])}")
-    changed = build.build(data)
+    changed = build.build(data, my=my)
     save_pending(list(pending.values()))
     for path in files:
         os.remove(path)
@@ -256,7 +271,7 @@ def proposal(files):
     """Report on submitted files in a pull request. Exits 1 if any of it can't be used."""
     submitted, problems = load_submissions(files)
     pending = {c["id"]: c for c in load_pending()}
-    by_id = {c["id"]: c for c in build.load()}
+    by_id = {c["id"]: c for c in build.load() + build.load_my()}
     rows = []
     for cid, pts in sorted(submitted.items()):
         cam = pending.get(cid) or by_id.get(cid)
